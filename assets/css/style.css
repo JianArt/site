@@ -163,6 +163,15 @@ body::after {
   }
 }
 
+/* Subtle pair connections — assets/js/dot-links.js */
+.dot-links {
+  position: fixed;
+  inset: 0;
+  z-index: -1; /* behind title, copy, and imagery */
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body::before,
   body::after {
@@ -330,15 +339,15 @@ img {
 
 @media (max-width: 800px) {
   .hero {
-    padding-top: calc(var(--nav-height) + 72px);
-    padding-bottom: 40px;
+    padding-top: calc(var(--nav-height) + 240px);
+    padding-bottom: 64px;
   }
 }
 
 @media (max-width: 480px) {
   .hero {
-    padding-top: calc(var(--nav-height) + 48px);
-    padding-bottom: 28px;
+    padding-top: calc(var(--nav-height) + 280px);
+    padding-bottom: 56px;
   }
 
   .hero h1 {
@@ -526,6 +535,7 @@ img {
   .project-grid {
     grid-template-columns: 1fr;
     padding-bottom: 80px;
+    gap: 20px;
   }
 
   .project-card,
@@ -534,14 +544,16 @@ img {
   }
 
   .project-card-label {
-    left: 28px;
-    bottom: 28px;
+    left: 36px;
+    bottom: 36px;
+    gap: 10px;
   }
 }
 
 @media (max-width: 480px) {
   .project-grid {
     padding-bottom: 56px;
+    gap: 18px;
   }
 
   .project-card,
@@ -551,27 +563,27 @@ img {
   }
 
   .project-card-label {
-    left: 22px;
-    bottom: 22px;
-    gap: 8px;
+    left: 32px;
+    bottom: 32px;
+    gap: 10px;
   }
 
   .project-card-label img {
-    height: 18px;
-    max-width: 88px;
+    height: 20px;
+    max-width: 96px;
   }
 
   .project-card-label img[src*="AoIZWPYc0eyfwmUZPqj6jH8xokY"] {
-    height: 16px;
+    height: 17px;
   }
 
   .project-card-label img[src*="6ywx5PBMBfuBV6TLf2mYcUYGI8"],
   .project-card-label img[src*="A2gCLVKfAIZhcGCuJejWxleJC0E"] {
-    height: 26px;
+    height: 28px;
   }
 
   .project-card-label span {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   /* Touch devices: keep hover motion gentle */
