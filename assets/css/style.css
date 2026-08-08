@@ -358,17 +358,17 @@ img {
 
 @media (max-width: 800px) {
   .hero {
-    /* Dot lightshow band ≈ 45% of the viewport below the nav */
-    padding-top: calc(var(--nav-height) + 45vh);
-    padding-top: calc(var(--nav-height) + 45dvh);
+    /* Dot lightshow band ≈ 35% of the viewport below the nav */
+    padding-top: calc(var(--nav-height) + 35vh);
+    padding-top: calc(var(--nav-height) + 35dvh);
     padding-bottom: 28px;
   }
 }
 
 @media (max-width: 480px) {
   .hero {
-    padding-top: calc(var(--nav-height) + 45vh);
-    padding-top: calc(var(--nav-height) + 45dvh);
+    padding-top: calc(var(--nav-height) + 35vh);
+    padding-top: calc(var(--nav-height) + 35dvh);
     padding-bottom: 20px;
   }
 
