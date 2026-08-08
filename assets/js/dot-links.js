@@ -12,14 +12,15 @@
   var gap = 16;
   var origin = gap / 2;
   var links = [];
-  var maxLinksNormal = 28;
-  var maxLinksFinale = 28;
+  var maxLinksNormal = 42;
+  var maxLinksFinale = 42;
   var maxLinks = maxLinksNormal;
   var cols = 0;
   var rows = 0;
   var w = 0;
   var h = 0;
   var dpr = 1;
+  var lastLayoutW = 0;
   var lastSpawn = 0;
   var nextSpawnIn = 0;
   var running = true;
@@ -38,6 +39,41 @@
   };
   var actCenter = null;
   var lockedCenter = null;
+  var actPlaylist = [];
+
+  function shuffleInPlace(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function syncViewport() {
+    var vv = window.visualViewport;
+    w = Math.max(1, Math.round((vv && vv.width) || window.innerWidth));
+    h = Math.max(1, Math.round((vv && vv.height) || window.innerHeight));
+    var nextGap = w < 480 ? 12 : w < 800 ? 14 : 16;
+    if (nextGap !== gap) {
+      gap = nextGap;
+      origin = gap / 2;
+    }
+  }
+
+  function resetActsForReflow() {
+    links.length = 0;
+    actCenter = null;
+    lockedCenter = null;
+    showActive = false;
+    finaleActive = false;
+    postFinale = false;
+    actPlaylist = [];
+    maxLinks = maxLinksNormal;
+    nextSpawnIn = 180;
+    lastSpawn = performance.now();
+  }
   var parallaxFactor = 0.4;
   var parallaxY = 0;
 
@@ -61,39 +97,37 @@
     var titleBox = title ? title.getBoundingClientRect() : null;
     var navBottom = nav ? nav.getBoundingClientRect().bottom : 0;
 
-    /* Header canvas: the open field between nav and title */
-    var fieldLeft = hr.left + 16;
-    var fieldRight = hr.right - 16;
-    var fieldTop = Math.max(hr.top, navBottom) + 16;
+    /* Full-viewport width; vertical band stays between nav and title */
+    var fieldTop = Math.max(hr.top, navBottom) + (w < 480 ? 10 : 16);
     var fieldBottom = titleBox
-      ? Math.min(titleBox.top - 20, hr.bottom - 8)
+      ? Math.min(titleBox.top - (w < 480 ? 12 : 20), hr.bottom - 8)
       : hr.bottom - 24;
-    var fieldW = Math.max(0, fieldRight - fieldLeft);
     var fieldH = Math.max(0, fieldBottom - fieldTop);
 
-    /* Compose a wide landscape rectangle in the header — never square */
-    var aspectMin = 2.4;
-    stage.width = Math.max(140, fieldW * 0.7);
-    stage.height = Math.min(fieldH * 0.88, stage.width / aspectMin);
-    if (stage.height < 56) stage.height = Math.min(fieldH * 0.88, 56);
-    if (stage.width / Math.max(1, stage.height) < aspectMin) {
-      stage.height = stage.width / aspectMin;
+    /* Narrow screens: shorter aspect so charts keep usable height */
+    var aspectMin = w < 480 ? 1.5 : w < 800 ? 1.85 : 2.4;
+    var minH = w < 480 ? 44 : 52;
+    stage.left = 0;
+    stage.right = w;
+    stage.width = w;
+    stage.height = Math.min(fieldH * 0.9, Math.max(minH, stage.width / aspectMin));
+    if (w < 800 && fieldH > 0) {
+      /* Use more of the tall mobile hero band */
+      stage.height = Math.min(fieldH * 0.88, Math.max(stage.height, Math.min(fieldH * 0.7, w / 1.35)));
     }
-    if (stage.height > fieldH * 0.92) {
-      stage.height = Math.max(48, fieldH * 0.92);
+    if (stage.height > fieldH * 0.92 && fieldH > 0) {
+      stage.height = Math.max(minH * 0.85, fieldH * 0.92);
     }
-    stage.cx = (fieldLeft + fieldRight) / 2;
+    stage.cx = w / 2;
     stage.cy = (fieldTop + fieldBottom) / 2;
-    stage.left = stage.cx - stage.width / 2;
-    stage.right = stage.cx + stage.width / 2;
     stage.top = stage.cy - stage.height / 2;
     stage.bottom = stage.cy + stage.height / 2;
 
     stage.ready =
-      stage.height > 48 &&
-      stage.width > 100 &&
-      stage.bottom > 24 &&
-      stage.top < h - 24;
+      stage.height > (w < 480 ? 36 : 44) &&
+      stage.width > 80 &&
+      stage.bottom > 16 &&
+      stage.top < h - 16;
 
     /* Keep center frozen while an act is on screen — prevents vertical jitter */
     if (stage.ready && !(links.length > 0 && lockedCenter)) {
@@ -111,8 +145,9 @@
   }
 
   function resize() {
-    w = window.innerWidth;
-    h = window.innerHeight;
+    var prevW = lastLayoutW;
+    var prevGap = gap;
+    syncViewport();
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
@@ -122,6 +157,12 @@
     cols = Math.ceil(w / gap) + 2;
     rows = Math.ceil(h / gap) + 2;
     updateStage();
+
+    /* Reflow acts when layout meaningfully changes */
+    if (prevW && (Math.abs(w - prevW) > 20 || prevGap !== gap)) {
+      resetActsForReflow();
+    }
+    lastLayoutW = w;
   }
 
   function inStage(x, y) {
@@ -132,15 +173,17 @@
   function stageFalloff(x, y) {
     if (!stage.ready) return 0;
     if (!inStage(x, y)) return 0;
-    var padX = Math.min(56, stage.width * 0.14);
-    var padY = Math.min(40, stage.height * 0.16);
-    var fx = 1;
+    /* Vertical fade only — full viewport width stays fully opaque */
+    var padY = Math.min(28, stage.height * 0.14);
     var fy = 1;
-    if (x < stage.left + padX) fx = (x - stage.left) / padX;
-    else if (x > stage.right - padX) fx = (stage.right - x) / padX;
     if (y < stage.top + padY) fy = (y - stage.top) / padY;
     else if (y > stage.bottom - padY) fy = (stage.bottom - y) / padY;
-    return Math.max(0, Math.min(1, fx)) * Math.max(0, Math.min(1, fy));
+    return Math.max(0, Math.min(1, fy));
+  }
+
+  function inBounds(col, row, drift) {
+    var p = gridPoint(col, row);
+    return inStage(p.x, p.y);
   }
 
   function liveCenter(drift) {
@@ -161,11 +204,6 @@
     return gridPoint(c.col + Math.round(ox * s), c.row + Math.round(oy * s));
   }
 
-  function inBounds(col, row, drift) {
-    var p = gridPoint(col, row);
-    return inStage(p.x, p.y) && stageFalloff(p.x, p.y) >= 0.15;
-  }
-
   function driftAt(now) {
     return 0;
   }
@@ -177,6 +215,44 @@
 
   function pick(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  /* Varied series heights — walk, independent, or jump modes */
+  function randomSeriesYs(count, minY, maxY) {
+    var ys = [];
+    if (maxY < minY) {
+      for (var z = 0; z < count; z++) ys.push(minY);
+      return ys;
+    }
+    var mode = Math.random();
+    var y = randInt(minY, maxY);
+    for (var i = 0; i < count; i++) {
+      if (mode < 0.33) {
+        y = randInt(minY, maxY);
+      } else if (mode < 0.66) {
+        y = Math.max(minY, Math.min(maxY, y + pick([-3, -2, -1, 1, 2, 3])));
+      } else {
+        if (Math.random() < 0.25) y = randInt(minY, maxY);
+        else y = Math.max(minY, Math.min(maxY, y + pick([-2, -1, 0, 0, 1, 2])));
+      }
+      ys.push(y);
+    }
+    /* Occasionally reverse or shuffle local runs for more surprise */
+    if (Math.random() < 0.2) ys.reverse();
+    return ys;
+  }
+
+  function markSeriesPoints(points, now, delay, chance) {
+    var next = delay;
+    for (var i = 0; i < points.length; i++) {
+      if (Math.random() > chance) continue;
+      addLink(points[i].col, points[i].row, points[i].col, points[i].row, now, next, {
+        peak: 0.5 + Math.random() * 0.12,
+        point: true
+      });
+      next += 8 + Math.floor(Math.random() * 18);
+    }
+    return next;
   }
 
   function addLink(col1, row1, col2, row2, now, delay, opts) {
@@ -224,30 +300,39 @@
       };
     }
 
-    /* Header field — wide landscape composition (shrink height, never invent width) */
-    var halfW = Math.max(5, Math.floor((stage.width * 0.5) / gap));
-    var halfH = Math.max(2, Math.floor((stage.height * 0.5) / gap));
-    var cellAspect = 2.2;
+    /* Pin cell grid to full stage width — landscape on desktop, taller on mobile */
+    var minCol = Math.ceil((stage.left - origin) / gap);
+    var maxCol = Math.floor((stage.right - origin) / gap);
+    var minRow = Math.ceil((stage.top - origin) / gap);
+    var maxRow = Math.floor((stage.bottom - origin) / gap);
+    if (maxCol <= minCol) maxCol = minCol + Math.max(6, Math.floor(w / gap) - 1);
+    if (maxRow <= minRow) maxRow = minRow + 3;
+
+    var width = maxCol - minCol;
+    var height = maxRow - minRow;
+    var halfW = Math.max(4, Math.floor(width / 2));
+    var halfH = Math.max(2, Math.floor(height / 2));
+    var cellAspect = w < 480 ? 1.45 : w < 800 ? 1.8 : 2.2;
     if (halfW / Math.max(1, halfH) < cellAspect) {
       halfH = Math.max(2, Math.floor(halfW / cellAspect));
     }
-    var width = halfW * 2;
-    var height = halfH * 2;
-    var spanW = Math.max(10, width);
-    var spanH = Math.max(3, Math.min(height, Math.floor(spanW / cellAspect)));
+    var spanW = Math.max(6, width);
+    var spanH = Math.max(3, Math.min(halfH * 2, Math.floor(spanW / cellAspect)));
     halfH = Math.max(2, Math.floor(spanH / 2));
     height = halfH * 2;
     spanH = height;
-    var radiusX = Math.max(4, Math.floor(spanW / 2));
+    minRow = c.row - halfH;
+    maxRow = c.row + halfH;
+    var radiusX = Math.max(3, Math.floor(spanW / 2));
     var radiusY = Math.max(2, Math.floor(spanH / 2));
     var radius = Math.min(radiusX, radiusY);
 
     return {
-      minCol: c.col - halfW,
-      maxCol: c.col + halfW,
-      minRow: c.row - halfH,
-      maxRow: c.row + halfH,
-      width: width,
+      minCol: minCol,
+      maxCol: maxCol,
+      minRow: minRow,
+      maxRow: maxRow,
+      width: spanW,
       height: height,
       spanW: spanW,
       spanH: spanH,
@@ -293,17 +378,17 @@
   function originForChart(drift) {
     var s = actCenter ? actCenter.metrics : stageCells(drift);
     var hub = actCenter || { col: s.cx, row: s.cy };
-    var col = hub.col - Math.floor(s.spanW / 2);
+    var col = s.minCol;
     var row = hub.row + Math.floor(s.spanH / 2);
     if (!inBounds(col, row, drift)) {
-      col = s.minCol + 1;
+      col = s.minCol;
       row = s.maxRow - 1;
     }
     if (!inBounds(col, row, drift)) return null;
     return { col: col, row: row, metrics: s };
   }
 
-  /* Centered landscape series — fills spanW and sits on stage mid */
+  /* Full-width series — always flush from minCol to maxCol */
   function seriesLayout(drift, minPts, maxPts, density) {
     var s = actCenter ? actCenter.metrics : stageCells(drift);
     var hub = actCenter || { col: s.cx, row: s.cy };
@@ -313,12 +398,18 @@
     }
     if (!inBounds(hub.col, baseRow, drift)) return null;
 
-    var pts = Math.max(minPts, Math.min(maxPts, Math.round(s.spanW / (density || 1.2))));
-    var step = Math.max(1, Math.floor(s.spanW / Math.max(1, pts - 1)));
-    var spanUsed = (pts - 1) * step;
-    var startCol = hub.col - Math.floor(spanUsed / 2);
+    var spanUsed = Math.max(1, s.maxCol - s.minCol);
+    var fitMax = Math.min(maxPts, spanUsed + 1);
+    var fitMin = Math.min(minPts, fitMax);
+    var dens = density || (w < 480 ? 1.0 : 1.2);
+    var pts = Math.max(fitMin, Math.min(fitMax, Math.round(spanUsed / dens) + 1));
+    var step = Math.max(1, Math.floor(spanUsed / Math.max(1, pts - 1)));
+    pts = Math.floor(spanUsed / step) + 1;
+    pts = Math.max(fitMin, Math.min(fitMax, pts));
+    step = Math.max(1, Math.floor(spanUsed / Math.max(1, pts - 1)));
+
     return {
-      startCol: startCol,
+      startCol: s.minCol,
       baseRow: baseRow,
       pts: pts,
       step: step,
@@ -565,8 +656,8 @@
     var midN = Math.max(3, Math.min(5, leftN + randInt(0, 1)));
     var rightN = Math.max(3, Math.min(5, leftN + randInt(-1, 1)));
     var useFour = false;
-    var colL = s.cx - Math.floor(s.spanW / 2);
-    var colR = s.cx + Math.floor(s.spanW / 2);
+    var colL = s.minCol;
+    var colR = s.maxCol;
     var colM = s.cx;
     var colM2 = s.cx + Math.floor(s.spanW / 6);
     var spanH = s.spanH;
@@ -607,14 +698,8 @@
           var id = from[i].row + '>' + dest.col + ':' + dest.row;
           if (used[id]) continue;
           used[id] = true;
-          var dy = dest.row - from[i].row;
-          var lift = dy === 0
-            ? pick([-18, -26, 18, 26])
-            : (dy > 0 ? pick([16, 24, 32]) : pick([-16, -24, -32]));
           addLink(from[i].col, from[i].row, dest.col, dest.row, now, delay, {
             peak: 0.46,
-            curve: 'arc',
-            arcLift: lift,
             drawEnd: 0.3
           });
           delay += 48;
@@ -702,70 +787,75 @@
 
   function spawnVarianceChart(now, drift) {
     var s = stageCells(drift);
-    var pts = Math.max(7, Math.min(14, Math.round(s.spanW / 1.4)));
-    var step = Math.max(2, Math.floor(s.spanW / (pts - 1)));
-    var startCol = s.cx - Math.floor(((pts - 1) * step) / 2);
+    var startCol = s.minCol;
+    var endCol = s.maxCol;
+    var spanUsed = Math.max(1, endCol - startCol);
+    /* Keep link budget under maxLinks while spanning full width */
+    var pts = Math.max(5, Math.min(7, Math.round(spanUsed / 4) + 1));
+    var step = Math.max(1, Math.floor(spanUsed / Math.max(1, pts - 1)));
+    pts = Math.floor(spanUsed / step) + 1;
+    if (pts > 7) {
+      pts = 7;
+      step = Math.max(1, Math.floor(spanUsed / (pts - 1)));
+    }
+    startCol = s.minCol;
+
     var meanRow = s.cy;
-    var maxSpread = Math.max(3, Math.floor(s.spanH / 2));
+    var minR = s.minRow + 1;
+    var maxR = s.maxRow - 1;
+    var maxSpread = Math.max(2, Math.min(Math.floor(s.spanH / 2), meanRow - minR, maxR - meanRow));
     var delay = 0;
     var means = [];
     var highs = [];
     var lows = [];
 
-    var mean = meanRow;
+    var meanYs = randomSeriesYs(pts, minR + 2, maxR - 2);
     for (var i = 0; i < pts; i++) {
-      mean = Math.max(
-        s.cy - Math.floor(maxSpread * 0.45),
-        Math.min(s.cy + Math.floor(maxSpread * 0.45), mean + pick([-2, -1, 0, 0, 1, 2]))
-      );
-      var spread = randInt(Math.max(2, Math.floor(maxSpread * 0.35)), maxSpread);
       var c = startCol + i * step;
-      var hi = mean - spread;
-      var lo = mean + Math.max(1, Math.floor(spread * (0.55 + Math.random() * 0.45)));
-      if (!inBounds(c, mean, drift) || !inBounds(c, hi, drift) || !inBounds(c, lo, drift)) {
-        if (means.length >= 5) break;
-        continue;
-      }
+      if (i === pts - 1) c = endCol;
+      if (!inBounds(c, meanRow, drift)) continue;
+
+      var mean = meanYs[i];
+      var spread = randInt(Math.max(2, Math.floor(maxSpread * 0.3)), maxSpread);
+      var hi = Math.max(minR, mean - spread);
+      var lo = Math.min(maxR, mean + Math.max(1, Math.floor(spread * (0.45 + Math.random() * 0.55))));
       means.push({ col: c, row: mean });
       highs.push({ col: c, row: hi });
       lows.push({ col: c, row: lo });
     }
-    if (means.length < 5) return false;
+    if (means.length < 4) return false;
 
-    /* Baseline axis */
-    addLink(means[0].col, lows[lows.length - 1].row + 1, means[means.length - 1].col, lows[lows.length - 1].row + 1, now, delay, { peak: 0.18 });
-    delay += 35;
+    /* Baseline axis — full series width */
+    var baseY = Math.min(maxR, lows[lows.length - 1].row + 1);
+    addLink(means[0].col, baseY, means[means.length - 1].col, baseY, now, delay, { peak: 0.18 });
+    delay += 30;
 
-    /* Upper / lower band envelopes */
-    for (var u = 0; u < highs.length - 1; u++) {
-      addLink(highs[u].col, highs[u].row, highs[u + 1].col, highs[u + 1].row, now, delay,
-        withArc({ peak: 0.32 }, pick([-10, -14, 10])));
+    /* Mean line */
+    for (var m = 0; m < means.length - 1; m++) {
+      addLink(means[m].col, means[m].row, means[m + 1].col, means[m + 1].row, now, delay, { peak: 0.55 });
       delay += 28;
+    }
+
+    /* Upper / lower band */
+    for (var u = 0; u < highs.length - 1; u++) {
+      addLink(highs[u].col, highs[u].row, highs[u + 1].col, highs[u + 1].row, now, delay, { peak: 0.3 });
+      delay += 22;
     }
     for (var l = 0; l < lows.length - 1; l++) {
-      addLink(lows[l].col, lows[l].row, lows[l + 1].col, lows[l + 1].row, now, delay,
-        withArc({ peak: 0.32 }, pick([10, 14, -10])));
-      delay += 28;
+      addLink(lows[l].col, lows[l].row, lows[l + 1].col, lows[l + 1].row, now, delay, { peak: 0.3 });
+      delay += 22;
     }
 
-    /* Mean line through the band */
-    for (var m = 0; m < means.length - 1; m++) {
-      addLink(means[m].col, means[m].row, means[m + 1].col, means[m + 1].row, now, delay,
-        withArc({ peak: 0.55 }, pick([-8, 8, -12, 12])));
-      delay += 36;
-    }
-
-    /* Variance whiskers at each sample */
+    /* Whiskers + caps at each sample */
     for (var wi = 0; wi < means.length; wi++) {
-      addLink(highs[wi].col, highs[wi].row, lows[wi].col, lows[wi].row, now, delay, { peak: 0.4 });
-      /* Cap ticks */
+      addLink(highs[wi].col, highs[wi].row, lows[wi].col, lows[wi].row, now, delay, { peak: 0.42 });
       if (inBounds(highs[wi].col - 1, highs[wi].row, drift) && inBounds(highs[wi].col + 1, highs[wi].row, drift)) {
-        addLink(highs[wi].col - 1, highs[wi].row, highs[wi].col + 1, highs[wi].row, now, delay + 12, { peak: 0.36 });
+        addLink(highs[wi].col - 1, highs[wi].row, highs[wi].col + 1, highs[wi].row, now, delay + 10, { peak: 0.36 });
       }
       if (inBounds(lows[wi].col - 1, lows[wi].row, drift) && inBounds(lows[wi].col + 1, lows[wi].row, drift)) {
-        addLink(lows[wi].col - 1, lows[wi].row, lows[wi].col + 1, lows[wi].row, now, delay + 18, { peak: 0.36 });
+        addLink(lows[wi].col - 1, lows[wi].row, lows[wi].col + 1, lows[wi].row, now, delay + 14, { peak: 0.36 });
       }
-      delay += 40;
+      delay += 32;
     }
     return true;
   }
@@ -894,72 +984,77 @@
   }
 
   function spawnLineChart(now, drift) {
-    var layout = seriesLayout(drift, 8, 16, 1.15);
+    var layout = seriesLayout(drift, 8, 18, 0.9 + Math.random() * 0.5);
     if (!layout) return false;
     var s = layout.metrics;
     var delay = 0;
+    var minY = layout.baseRow - s.spanH;
+    var maxY = layout.baseRow - 1;
+    var ys = randomSeriesYs(layout.pts, minY, maxY);
     var points = [];
-    var y = layout.baseRow - Math.floor(s.spanH * 0.4);
     for (var i = 0; i < layout.pts; i++) {
-      y = Math.max(layout.baseRow - s.spanH, Math.min(layout.baseRow - 1, y + pick([-3, -2, -1, 1, 2, 3])));
-      var c = layout.startCol + i * layout.step;
-      if (!inBounds(c, y, drift)) break;
-      points.push({ col: c, row: y });
+      var c = i === layout.pts - 1
+        ? s.maxCol
+        : layout.startCol + i * layout.step;
+      points.push({ col: c, row: ys[i] });
     }
     if (points.length < 4) return false;
 
     addLink(points[0].col, layout.baseRow, points[points.length - 1].col, layout.baseRow, now, delay, { peak: 0.2 });
-    delay += 35;
+    delay += 28 + Math.floor(Math.random() * 20);
 
     for (var p = 0; p < points.length - 1; p++) {
-      var prev = points[Math.max(0, p - 1)];
-      var next = points[Math.min(points.length - 1, p + 2)];
-      addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-        withCatmull({ peak: 0.5 }, prev, next));
-      delay += 36;
+      addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay, {
+        peak: 0.45 + Math.random() * 0.12
+      });
+      delay += 24 + Math.floor(Math.random() * 24);
     }
+    markSeriesPoints(points, now, delay, 0.45 + Math.random() * 0.4);
     return true;
   }
 
   function spawnStepChart(now, drift) {
-    var layout = seriesLayout(drift, 7, 14, 1.3);
+    var layout = seriesLayout(drift, 7, 16, 1.0 + Math.random() * 0.5);
     if (!layout) return false;
     var s = layout.metrics;
     var delay = 0;
+    var minY = layout.baseRow - s.spanH;
+    var maxY = layout.baseRow - 1;
+    var ys = randomSeriesYs(layout.pts, minY, maxY);
     var points = [];
-    var y = layout.baseRow - Math.floor(s.spanH * 0.4);
     for (var i = 0; i < layout.pts; i++) {
-      y = Math.max(layout.baseRow - s.spanH, Math.min(layout.baseRow - 1, y + pick([-3, -2, -1, 1, 2, 3])));
-      var c = layout.startCol + i * layout.step;
-      if (!inBounds(c, y, drift)) break;
-      points.push({ col: c, row: y });
+      var c = i === layout.pts - 1
+        ? s.maxCol
+        : layout.startCol + i * layout.step;
+      points.push({ col: c, row: ys[i] });
     }
     if (points.length < 4) return false;
 
     addLink(points[0].col, layout.baseRow, points[points.length - 1].col, layout.baseRow, now, delay, { peak: 0.2 });
-    delay += 30;
+    delay += 24 + Math.floor(Math.random() * 18);
 
     /* Classic step: hold level, then jump — horizontal then vertical */
     for (var p = 0; p < points.length - 1; p++) {
       var a = points[p];
       var b = points[p + 1];
-      if (a.row !== b.row && inBounds(b.col, a.row, drift)) {
-        addLink(a.col, a.row, b.col, a.row, now, delay, { peak: 0.5 });
-        delay += 28;
-        addLink(b.col, a.row, b.col, b.row, now, delay, { peak: 0.48 });
-        delay += 24;
+      if (a.row !== b.row) {
+        addLink(a.col, a.row, b.col, a.row, now, delay, { peak: 0.48 + Math.random() * 0.08 });
+        delay += 20 + Math.floor(Math.random() * 16);
+        addLink(b.col, a.row, b.col, b.row, now, delay, { peak: 0.46 + Math.random() * 0.08 });
+        delay += 16 + Math.floor(Math.random() * 14);
       } else {
         addLink(a.col, a.row, b.col, b.row, now, delay, { peak: 0.5 });
-        delay += 32;
+        delay += 24 + Math.floor(Math.random() * 16);
       }
     }
+    markSeriesPoints(points, now, delay, 0.5 + Math.random() * 0.35);
     return true;
   }
 
   function spawnTreemap(now, drift) {
     var s = stageCells(drift);
-    var left = s.cx - Math.floor(s.spanW / 2);
-    var right = s.cx + Math.floor(s.spanW / 2);
+    var left = s.minCol;
+    var right = s.maxCol;
     var top = s.cy - Math.floor(s.spanH / 2);
     var bottom = s.cy + Math.floor(s.spanH / 2);
     if (!inBounds(left, top, drift) || !inBounds(right, bottom, drift)) return false;
@@ -1122,7 +1217,6 @@
 
   function spawnScatter(now, drift) {
     var s = stageCells(drift);
-    var halfW = Math.floor(s.spanW / 2);
     var halfH = Math.floor(s.spanH / 2);
     var dots = Math.max(14, Math.min(36, Math.round((s.spanW * s.spanH) / 6)));
     var delay = 0;
@@ -1130,7 +1224,7 @@
     var used = {};
 
     for (var i = 0; i < dots * 3 && made < dots; i++) {
-      var c = s.cx + randInt(-halfW, halfW);
+      var c = randInt(s.minCol, s.maxCol);
       var r = s.cy + randInt(-halfH, halfH);
       var id = c + ',' + r;
       if (used[id] || !inBounds(c, r, drift)) continue;
@@ -1253,33 +1347,36 @@
   }
 
   function spawnAreaChart(now, drift) {
-    var layout = seriesLayout(drift, 7, 14, 1.25);
+    var layout = seriesLayout(drift, 6, 12, 1.1 + Math.random() * 0.5);
     if (!layout) return false;
     var s = layout.metrics;
     var delay = 0;
+    var minY = layout.baseRow - s.spanH;
+    var maxY = layout.baseRow - 1;
+    var ys = randomSeriesYs(layout.pts, minY, maxY);
     var points = [];
-    var y = layout.baseRow - Math.floor(s.spanH * 0.45);
     for (var i = 0; i < layout.pts; i++) {
-      y = Math.max(layout.baseRow - s.spanH, Math.min(layout.baseRow - 1, y + pick([-2, -1, 1, 2])));
-      var c = layout.startCol + i * layout.step;
-      if (!inBounds(c, y, drift)) break;
-      points.push({ col: c, row: y });
+      var c = i === layout.pts - 1
+        ? s.maxCol
+        : layout.startCol + i * layout.step;
+      points.push({ col: c, row: ys[i] });
     }
     if (points.length < 4) return false;
 
     addLink(points[0].col, layout.baseRow, points[points.length - 1].col, layout.baseRow, now, delay, { peak: 0.2 });
-    delay += 30;
+    delay += 24 + Math.floor(Math.random() * 16);
     for (var p = 0; p < points.length - 1; p++) {
-      var prev = points[Math.max(0, p - 1)];
-      var next = points[Math.min(points.length - 1, p + 2)];
-      addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-        withCatmull({ peak: 0.48 }, prev, next));
-      delay += 32;
+      addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay, {
+        peak: 0.44 + Math.random() * 0.1
+      });
+      delay += 22 + Math.floor(Math.random() * 18);
     }
     for (var v = 0; v < points.length; v++) {
-      addLink(points[v].col, points[v].row, points[v].col, layout.baseRow, now, delay, { peak: 0.24 });
-      delay += 26;
+      if (Math.random() < 0.15) continue;
+      addLink(points[v].col, points[v].row, points[v].col, layout.baseRow, now, delay, { peak: 0.22 + Math.random() * 0.08 });
+      delay += 18 + Math.floor(Math.random() * 14);
     }
+    markSeriesPoints(points, now, delay, 0.35 + Math.random() * 0.4);
     return true;
   }
 
@@ -1329,43 +1426,103 @@
   }
 
   function spawnHistogram(now, drift) {
-    var originN = originForChart(drift);
-    if (!originN) return false;
-    var s = originN.metrics;
-    /* Dense stem row across most of the stage — the lollipop look */
-    var bins = Math.max(12, Math.min(s.spanW + 2, Math.round(s.width * 0.7)));
-    var startCol = s.cx - Math.floor(bins / 2);
-    var baseRow = s.cy + Math.floor(s.spanH / 2);
-    if (!inBounds(startCol, baseRow, drift)) {
-      startCol = originN.col;
-      baseRow = originN.row;
-      bins = s.spanW;
-    }
-    var maxH = Math.max(4, Math.min(s.spanH, baseRow - s.minRow - 1));
+    var s = actCenter ? actCenter.metrics : stageCells(drift);
+    var startCol = s.minCol;
+    var endCol = s.maxCol;
+    var spanUsed = Math.max(1, endCol - startCol);
+    var baseRow = Math.min(s.maxRow, s.cy + Math.floor(s.spanH / 2));
+    if (!inBounds(startCol, baseRow, drift)) baseRow = s.maxRow;
+    var maxH = Math.max(3, Math.min(s.spanH, Math.max(1, baseRow - s.minRow)));
     var delay = 0;
-    var endCol = startCol + bins - 1;
-    if (!inBounds(endCol, baseRow, drift)) {
-      bins = Math.max(8, endCol - startCol);
-      endCol = startCol + bins - 1;
-    }
+
+    /* Need room for a stem on every step across the full baseline */
+    var prevMax = maxLinks;
+    maxLinks = Math.max(maxLinks, 96);
+
+    var step = Math.max(w < 480 ? 1 : 2, Math.round(spanUsed / (w < 480 ? 22 : 36)));
+    var bins = Math.floor(spanUsed / step) + 1;
 
     addLink(startCol, baseRow, endCol, baseRow, now, delay, { peak: 0.28 });
-    delay += 30;
+    delay += 24;
+
+    var heights = randomSeriesYs(bins, Math.max(2, Math.floor(maxH * 0.2)), maxH);
+    if (Math.random() < 0.5) {
+      for (var hi = 0; hi < heights.length; hi++) {
+        heights[hi] = randInt(Math.max(2, Math.floor(maxH * 0.15)), maxH);
+      }
+    }
 
     var made = 0;
     for (var i = 0; i < bins; i++) {
-      var c = startCol + i;
-      var ht = randInt(Math.max(2, Math.floor(maxH * 0.15)), maxH);
-      if (!inBounds(c, baseRow - ht, drift)) continue;
-      addLink(c, baseRow, c, baseRow - ht, now, delay, {
+      var c = i === bins - 1 ? endCol : startCol + i * step;
+      var ht = heights[i];
+      var tip = Math.max(s.minRow, baseRow - ht);
+      addLink(c, baseRow, c, tip, now, delay, {
+        peak: 0.48 + Math.random() * 0.1,
+        drawEnd: 0.12 + Math.random() * 0.08,
+        fadeStart: 0.7 + Math.random() * 0.08
+      });
+      delay += 8 + Math.floor(Math.random() * 12);
+      if (Math.random() < 0.85) {
+        addLink(c, tip, c, tip, now, delay, { peak: 0.52 + Math.random() * 0.1, point: true });
+        delay += 6 + Math.floor(Math.random() * 10);
+      }
+      made++;
+    }
+
+    maxLinks = prevMax;
+    return made >= 8;
+  }
+
+  function spawnLollipopH(now, drift) {
+    var s = stageCells(drift);
+    var baseCol = s.minCol;
+    var endCol = s.maxCol;
+    var maxW = Math.max(5, endCol - baseCol);
+    var top = s.cy - Math.floor(s.spanH / 2);
+    var bottom = s.cy + Math.floor(s.spanH / 2);
+    var rows = Math.max(4, Math.min(w < 480 ? 6 : 9, bottom - top + 1));
+    var step = Math.max(1, Math.floor((bottom - top) / Math.max(1, rows - 1)));
+    rows = Math.floor((bottom - top) / step) + 1;
+    var startRow = s.cy - Math.floor(((rows - 1) * step) / 2);
+    var endRow = startRow + (rows - 1) * step;
+    var delay = 0;
+
+    if (!inBounds(baseCol, startRow, drift) || !inBounds(baseCol, endRow, drift)) return false;
+
+    /* Category axis (left) + full-width value axis (bottom) */
+    addLink(baseCol, startRow, baseCol, endRow, now, delay, { peak: 0.28 });
+    delay += 22;
+    addLink(baseCol, endRow, endCol, endRow, now, delay, { peak: 0.22 });
+    delay += 26;
+
+    /* Lengths in [0.2, 1] of full width — longest always hits the right edge */
+    var lengths = [];
+    var maxLen = 0;
+    for (var i = 0; i < rows; i++) {
+      var raw = 0.22 + Math.random() * 0.78;
+      lengths.push(raw);
+      if (raw > maxLen) maxLen = raw;
+    }
+
+    var made = 0;
+    for (var j = 0; j < rows; j++) {
+      var r = startRow + j * step;
+      var len = Math.max(3, Math.round((lengths[j] / maxLen) * maxW));
+      var tip = baseCol + len;
+      if (tip > endCol) tip = endCol;
+      if (j === 0) tip = endCol; /* guarantee full-width read */
+      addLink(baseCol, r, tip, r, now, delay, {
         peak: 0.52,
         drawEnd: 0.16,
         fadeStart: 0.72
       });
-      delay += 22;
+      delay += 18;
+      addLink(tip, r, tip, r, now, delay, { peak: 0.58, point: true });
+      delay += 14;
       made++;
     }
-    return made >= 8;
+    return made >= 4;
   }
 
   function spawnGuilloche(now, drift) {
@@ -1508,10 +1665,12 @@
 
   function spawnFinaleWave(now, drift) {
     var before = links.length;
-    var pickAct = pick([
-      spawnSankey, spawnHistogram, spawnLineChart, spawnStepChart,
+    var finaleActs = [
+      spawnSankey, spawnHistogram, spawnLollipopH, spawnLineChart, spawnStepChart,
       spawnTreemap, spawnAreaChart, spawnVarianceChart, spawnScatter
-    ]);
+    ];
+    shuffleInPlace(finaleActs);
+    var pickAct = finaleActs[0];
     pickAct(now, drift);
     for (var i = before; i < links.length; i++) {
       links[i].finale = true;
@@ -1574,49 +1733,62 @@
 
     var drift = driftAt(now);
     beginAct(drift);
-    /* Data-visualization lineup — one pattern at a time */
+    /* Shuffled playlist — each pattern once per cycle, then reshuffle */
     var catalog = [
-      { name: 'sankey', fn: spawnSankey, w: 8 },
-      { name: 'hist', fn: spawnHistogram, w: 7 },
-      { name: 'line', fn: spawnLineChart, w: 7 },
-      { name: 'treemap', fn: spawnTreemap, w: 7 },
-      { name: 'step', fn: spawnStepChart, w: 6 },
-      { name: 'area', fn: spawnAreaChart, w: 6 },
-      { name: 'variance', fn: spawnVarianceChart, w: 6 },
-      { name: 'scatter', fn: spawnScatter, w: 5 }
+      { name: 'sankey', fn: spawnSankey },
+      { name: 'hist', fn: spawnHistogram },
+      { name: 'lollipop-h', fn: spawnLollipopH },
+      { name: 'line', fn: spawnLineChart },
+      { name: 'treemap', fn: spawnTreemap },
+      { name: 'step', fn: spawnStepChart },
+      { name: 'area', fn: spawnAreaChart },
+      { name: 'variance', fn: spawnVarianceChart },
+      { name: 'scatter', fn: spawnScatter }
     ];
 
-    var pool = [];
-    for (var i = 0; i < catalog.length; i++) {
-      if (recentTypes.indexOf(catalog[i].name) !== -1) continue;
-      for (var wgt = 0; wgt < catalog[i].w; wgt++) pool.push(catalog[i]);
+    if (!actPlaylist.length) {
+      actPlaylist = catalog.slice();
+      shuffleInPlace(actPlaylist);
+      /* Avoid starting a cycle with the same act that just ended */
+      if (recentTypes.length && actPlaylist.length > 1 && actPlaylist[0].name === recentTypes[recentTypes.length - 1]) {
+        var swap = 1 + Math.floor(Math.random() * (actPlaylist.length - 1));
+        var tmp = actPlaylist[0];
+        actPlaylist[0] = actPlaylist[swap];
+        actPlaylist[swap] = tmp;
+      }
     }
-    if (!pool.length) pool = catalog;
 
-    var choice = pool[Math.floor(Math.random() * pool.length)];
+    var choice = actPlaylist.shift();
     var before = links.length;
     var ok = choice.fn(now, drift);
     if (!ok || links.length === before) {
-      var fallback = catalog[Math.floor(Math.random() * catalog.length)];
-      fallback.fn(now, drift);
-      choice = fallback;
+      var fallbackPool = catalog.slice();
+      shuffleInPlace(fallbackPool);
+      for (var f = 0; f < fallbackPool.length; f++) {
+        if (fallbackPool[f].name === choice.name) continue;
+        var prev = links.length;
+        if (fallbackPool[f].fn(now, drift) && links.length > prev) {
+          choice = fallbackPool[f];
+          break;
+        }
+      }
     }
 
     /* Amplify this act — brighter peaks, shared choreography timing */
     for (var L = before; L < links.length; L++) {
-      links[L].peak = Math.min(0.75, links[L].peak * 1.55);
-      links[L].life = Math.max(links[L].life, 5800);
-      links[L].fadeStart = Math.max(links[L].fadeStart, 0.74);
-      links[L].drawEnd = Math.min(links[L].drawEnd, 0.28);
+      links[L].peak = Math.min(0.75, links[L].peak * (1.35 + Math.random() * 0.35));
+      links[L].life = Math.max(links[L].life, 5600 + Math.random() * 1800);
+      links[L].fadeStart = Math.max(links[L].fadeStart, 0.7 + Math.random() * 0.08);
+      links[L].drawEnd = Math.min(links[L].drawEnd, 0.22 + Math.random() * 0.1);
     }
 
     recentTypes.push(choice.name);
-    if (recentTypes.length > 2) recentTypes.shift();
+    if (recentTypes.length > 3) recentTypes.shift();
     showActive = true;
     postFinale = false;
 
     /* Intermission after the act finishes (~life length) */
-    nextSpawnIn = 6500 + Math.random() * 2800;
+    nextSpawnIn = 5500 + Math.random() * 3500;
   }
 
   function easeOutCubic(t) {
@@ -1829,6 +2001,9 @@
   resize();
   updateParallax();
   window.addEventListener('resize', onViewportChange);
+  window.addEventListener('orientationchange', function () {
+    setTimeout(onViewportChange, 80);
+  });
   window.addEventListener('scroll', function () {
     updateParallax();
     updateStage();
@@ -1843,7 +2018,7 @@
   if (typeof ResizeObserver !== 'undefined') {
     var heroEl = document.querySelector('main > .hero:not(.about-hero)');
     if (heroEl) {
-      var ro = new ResizeObserver(function () { updateStage(); });
+      var ro = new ResizeObserver(function () { onViewportChange(); });
       ro.observe(heroEl);
       var titleEl = heroEl.querySelector('h1');
       if (titleEl) ro.observe(titleEl);
