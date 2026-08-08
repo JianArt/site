@@ -118,8 +118,8 @@
     stage.width = w;
     stage.height = Math.min(fieldH * 0.9, Math.max(minH, stage.width / aspectMin));
     if (w < 800 && fieldH > 0) {
-      /* Mobile: occupy ~35% of the viewport within the hero band */
-      var mobileTarget = h * 0.35;
+      /* Mobile: occupy ~40% of the viewport within the hero band */
+      var mobileTarget = h * 0.4;
       stage.height = Math.max(minH, Math.min(fieldH * 0.94, mobileTarget));
     }
     if (stage.height > fieldH * 0.92 && fieldH > 0) {
