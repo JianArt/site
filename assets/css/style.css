@@ -374,7 +374,8 @@ img {
 /* ---------- Footer CTA ---------- */
 
 .cta {
-  padding: 96px 0 48px;
+  padding-top: 96px;
+  padding-bottom: 48px;
   border-top: 1px solid rgba(255,255,255,0.08);
   margin-top: 64px;
 }
