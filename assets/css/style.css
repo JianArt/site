@@ -343,7 +343,9 @@ img {
 /* ---------- Hero ---------- */
 
 .hero {
-  padding-top: clamp(120px, 22vw, 420px);
+  /* Dot lightshow band ≈ 40% of the viewport below the nav */
+  padding-top: calc(var(--nav-height) + 40vh);
+  padding-top: calc(var(--nav-height) + 40dvh);
   padding-bottom: clamp(40px, 6vw, 64px);
 }
 
@@ -358,17 +360,12 @@ img {
 
 @media (max-width: 800px) {
   .hero {
-    /* Dot lightshow band ≈ 40% of the viewport below the nav */
-    padding-top: calc(var(--nav-height) + 40vh);
-    padding-top: calc(var(--nav-height) + 40dvh);
     padding-bottom: 28px;
   }
 }
 
 @media (max-width: 480px) {
   .hero {
-    padding-top: calc(var(--nav-height) + 40vh);
-    padding-top: calc(var(--nav-height) + 40dvh);
     padding-bottom: 20px;
   }
 
