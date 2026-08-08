@@ -405,7 +405,7 @@ img {
 .project-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--grid-gap);
+  gap: 28px;
   padding-bottom: 120px;
 }
 
@@ -416,13 +416,29 @@ img {
   overflow: hidden;
   isolation: isolate;
   aspect-ratio: var(--ar, 16 / 7);
-  background: #12110f;
+  background: rgba(18, 17, 15, 0.62);
   border: none;
-  box-shadow: none;
+  border-bottom: none;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.35),
+    0 10px 20px rgba(0, 0, 0, 0.32),
+    0 28px 56px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  transition:
+    box-shadow 0.75s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .project-card.wide {
   grid-column: 1 / -1;
+}
+
+.project-card:hover,
+.project-card:focus-visible {
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.35),
+    0 14px 28px rgba(0, 0, 0, 0.4),
+    0 28px 52px rgba(0, 0, 0, 0.42);
 }
 
 .project-card img.cover {
@@ -433,15 +449,20 @@ img {
   transform: scale(1.001) translateZ(0);
   transform-origin: 50% 42%;
   backface-visibility: hidden;
+  opacity: 0.93;
+  /* slight image recess so the glass rim reads as a front pane */
+  filter: brightness(0.97) contrast(1.02);
   transition:
     transform 1.45s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+    filter 1.1s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.7s ease;
 }
 
 .project-card:hover img.cover,
 .project-card:focus-visible img.cover {
-  transform: scale(1.065) translateZ(0);
-  filter: brightness(1.06) contrast(1.03) saturate(1.04);
+  transform: scale(1.07) translateZ(0);
+  filter: brightness(1.07) contrast(1.04) saturate(1.05);
+  opacity: 1;
 }
 
 .project-card:focus-visible {
@@ -449,31 +470,47 @@ img {
   outline-offset: 3px;
 }
 
-/* Soft glass highlight — no blur, no sheen */
+/* Top white gradient shine */
 .project-card::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.07) 0%,
-    rgba(255, 255, 255, 0.02) 28%,
-    transparent 52%
-  );
-  opacity: 0.5;
-  transition: opacity 0.9s ease, background 0.9s ease;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.02) 8%,
+      rgba(255, 255, 255, 0.07) 28%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0.07) 72%,
+      rgba(255, 255, 255, 0.02) 92%,
+      transparent 100%
+    ) top center / 100% 1px no-repeat;
+  opacity: 1;
+  transition: background 0.9s ease;
 }
 
 .project-card:hover::before,
 .project-card:focus-visible::before {
-  opacity: 0.28;
-  background: radial-gradient(
-    ellipse 85% 75% at 50% 38%,
-    transparent 25%,
-    rgba(0, 0, 0, 0.42) 100%
-  );
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.02) 8%,
+      rgba(255, 255, 255, 0.07) 28%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0.07) 72%,
+      rgba(255, 255, 255, 0.02) 92%,
+      transparent 100%
+    ) top center / 100% 1px no-repeat,
+    radial-gradient(
+      ellipse 90% 80% at 50% 30%,
+      transparent 30%,
+      rgba(0, 0, 0, 0.36) 100%
+    );
 }
 
 /* Bottom gradient for label legibility */
@@ -554,7 +591,7 @@ img {
   .project-grid {
     grid-template-columns: 1fr;
     padding-bottom: 80px;
-    gap: 20px;
+    gap: 32px;
   }
 
   .project-card,
@@ -572,7 +609,7 @@ img {
 @media (max-width: 480px) {
   .project-grid {
     padding-bottom: 56px;
-    gap: 18px;
+    gap: 28px;
   }
 
   .project-card,
@@ -612,9 +649,17 @@ img {
 }
 
 @media (hover: none) {
+  .project-card:hover {
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.35),
+      0 10px 20px rgba(0, 0, 0, 0.32),
+      0 28px 56px rgba(0, 0, 0, 0.42);
+  }
+
   .project-card:hover img.cover {
     transform: scale(1.001) translateZ(0);
-    filter: none;
+    filter: brightness(0.97) contrast(1.02);
+    opacity: 0.93;
   }
 
   .project-card:active img.cover {
@@ -801,8 +846,17 @@ img {
   justify-content: center;
   aspect-ratio: 2 / 1;
   min-height: 64px;
-  background: #141210;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 10px 22px rgba(0, 0, 0, 0.34),
+    0 22px 40px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
 }
 
 .logo-card img {
@@ -997,7 +1051,9 @@ main {
   filter: none;
   transition:
     opacity 1.05s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transform 1.25s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.75s ease;
   transition-delay: var(--reveal-delay, 0ms);
   will-change: opacity, transform;
 }
@@ -1019,13 +1075,13 @@ main {
 
 .project-card.reveal.is-visible img.cover {
   transform: scale(1.001) translateZ(0);
-  filter: none;
+  filter: brightness(0.97) contrast(1.02);
 }
 
 .project-card.reveal.is-visible:hover img.cover,
 .project-card.reveal.is-visible:focus-visible img.cover {
-  transform: scale(1.065) translateZ(0);
-  filter: brightness(1.06) contrast(1.03) saturate(1.04);
+  transform: scale(1.07) translateZ(0);
+  filter: brightness(1.07) contrast(1.04) saturate(1.05);
   transition-delay: 0ms;
 }
 
