@@ -109,6 +109,8 @@ body::before {
     transparent 78%
   );
   animation: dot-drift 120s linear infinite;
+  transform: translate3d(0, var(--parallax-y, 0px), 0);
+  will-change: transform;
 }
 
 /* Soft ambient glows — sparse, dark, elegant */
@@ -170,6 +172,8 @@ body::after {
   z-index: -1; /* behind title, copy, and imagery */
   pointer-events: none;
   mix-blend-mode: screen;
+  transform: translate3d(0, var(--parallax-y, 0px), 0);
+  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {

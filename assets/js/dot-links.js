@@ -11,8 +11,6 @@
 
   var gap = 16;
   var origin = gap / 2;
-  var driftPeriod = 120000;
-  var driftDist = 160;
   var links = [];
   var maxLinksNormal = 36;
   var maxLinksFinale = 110;
@@ -39,12 +37,22 @@
     ready: false
   };
   var actCenter = null;
+  var lockedCenter = null;
+  var parallaxFactor = 0.4;
+  var parallaxY = 0;
+
+  function updateParallax() {
+    var sy = window.scrollY || document.documentElement.scrollTop || 0;
+    parallaxY = -sy * parallaxFactor;
+    document.documentElement.style.setProperty('--parallax-y', parallaxY + 'px');
+  }
 
   function updateStage() {
     var hero = document.querySelector('main > .hero:not(.about-hero)');
     var nav = document.querySelector('.nav');
     if (!hero) {
       stage.ready = false;
+      lockedCenter = null;
       return;
     }
 
@@ -53,23 +61,47 @@
     var titleBox = title ? title.getBoundingClientRect() : null;
     var navBottom = nav ? nav.getBoundingClientRect().bottom : 0;
 
-    stage.left = hr.left + 8;
-    stage.right = hr.right - 8;
-    stage.top = Math.max(hr.top, navBottom) + 12;
-    stage.bottom = titleBox
-      ? Math.min(titleBox.top - 16, hr.bottom - 8)
+    /* Header canvas: the open field between nav and title */
+    var fieldLeft = hr.left + 16;
+    var fieldRight = hr.right - 16;
+    var fieldTop = Math.max(hr.top, navBottom) + 16;
+    var fieldBottom = titleBox
+      ? Math.min(titleBox.top - 20, hr.bottom - 8)
       : hr.bottom - 24;
+    var fieldW = Math.max(0, fieldRight - fieldLeft);
+    var fieldH = Math.max(0, fieldBottom - fieldTop);
 
-    stage.width = Math.max(0, stage.right - stage.left);
-    stage.height = Math.max(0, stage.bottom - stage.top);
-    stage.cx = (stage.left + stage.right) / 2;
-    stage.cy = (stage.top + stage.bottom) / 2;
+    /* Compose a wide rectangle in the header — avoid square proportions */
+    var aspectMin = 1.9;
+    stage.width = Math.max(140, fieldW * 0.96);
+    stage.height = Math.max(72, Math.min(fieldH * 0.9, stage.width / aspectMin));
+    if (stage.height > fieldH * 0.92) stage.height = Math.max(64, fieldH * 0.92);
+    stage.cx = (fieldLeft + fieldRight) / 2;
+    stage.cy = (fieldTop + fieldBottom) / 2;
+    stage.left = stage.cx - stage.width / 2;
+    stage.right = stage.cx + stage.width / 2;
+    stage.top = stage.cy - stage.height / 2;
+    stage.bottom = stage.cy + stage.height / 2;
 
     stage.ready =
-      stage.height > 72 &&
+      stage.height > 64 &&
       stage.width > 100 &&
       stage.bottom > 24 &&
       stage.top < h - 24;
+
+    /* Keep center frozen while an act is on screen — prevents vertical jitter */
+    if (stage.ready && !(links.length > 0 && lockedCenter)) {
+      var col = Math.round((stage.cx - origin) / gap);
+      var row = Math.round((stage.cy - origin) / gap);
+      lockedCenter = {
+        col: col,
+        row: row,
+        x: origin + col * gap,
+        y: origin + row * gap
+      };
+    } else if (!stage.ready) {
+      lockedCenter = null;
+    }
   }
 
   function resize() {
@@ -86,10 +118,6 @@
     updateStage();
   }
 
-  function driftAt(now) {
-    return (((now - start) % driftPeriod) / driftPeriod) * driftDist;
-  }
-
   function inStage(x, y) {
     if (!stage.ready) return false;
     return x >= stage.left && x <= stage.right && y >= stage.top && y <= stage.bottom;
@@ -98,8 +126,8 @@
   function stageFalloff(x, y) {
     if (!stage.ready) return 0;
     if (!inStage(x, y)) return 0;
-    var padX = Math.min(40, stage.width * 0.1);
-    var padY = Math.min(32, stage.height * 0.12);
+    var padX = Math.min(56, stage.width * 0.14);
+    var padY = Math.min(40, stage.height * 0.16);
     var fx = 1;
     var fy = 1;
     if (x < stage.left + padX) fx = (x - stage.left) / padX;
@@ -110,34 +138,30 @@
   }
 
   function liveCenter(drift) {
-    if (!stage.ready) return null;
-    var col = Math.round((stage.cx - drift - origin) / gap);
-    var row = Math.round((stage.cy - drift - origin) / gap);
-    return {
-      col: col,
-      row: row,
-      x: origin + col * gap + drift,
-      y: origin + row * gap + drift
-    };
+    return lockedCenter;
   }
 
   function gridPoint(col, row, drift) {
     return {
-      x: origin + col * gap + drift,
-      y: origin + row * gap + drift
+      x: origin + col * gap,
+      y: origin + row * gap
     };
   }
 
   function resolvePoint(ox, oy, drift, scale, center) {
-    var c = center || liveCenter(drift);
+    var c = center || liveCenter();
     if (!c) return { x: -9999, y: -9999 };
     var s = scale == null ? 1 : scale;
-    return gridPoint(c.col + Math.round(ox * s), c.row + Math.round(oy * s), drift);
+    return gridPoint(c.col + Math.round(ox * s), c.row + Math.round(oy * s));
   }
 
   function inBounds(col, row, drift) {
-    var p = gridPoint(col, row, drift);
+    var p = gridPoint(col, row);
     return inStage(p.x, p.y) && stageFalloff(p.x, p.y) >= 0.15;
+  }
+
+  function driftAt(now) {
+    return 0;
   }
 
   function randInt(min, max) {
@@ -151,9 +175,9 @@
 
   function addLink(col1, row1, col2, row2, now, delay, opts) {
     if (links.length >= maxLinks) return false;
-    if (col1 === col2 && row1 === row2) return false;
-    if (!actCenter) return false;
     opts = opts || {};
+    if (col1 === col2 && row1 === row2 && !opts.point) return false;
+    if (!actCenter) return false;
     var c = actCenter;
     var peakBase = opts.peak != null ? opts.peak : 0.42;
     links.push({
@@ -171,34 +195,34 @@
       curve: opts.curve || null,
       arcLift: opts.arcLift || 0,
       finale: !!opts.finale,
-      weight: opts.weight || 1
+      weight: opts.weight || 1,
+      point: !!opts.point
     });
     return true;
   }
 
   function stageCells(drift) {
-    var c = liveCenter(drift);
+    var c = liveCenter();
     if (!c || !stage.ready) {
       return {
         minCol: 0, maxCol: 10, minRow: 0, maxRow: 8,
-        width: 10, height: 8, spanW: 7, spanH: 5, radius: 4,
+        width: 10, height: 8, spanW: 8, spanH: 4, radius: 3, radiusX: 4, radiusY: 2,
         cx: 5, cy: 4
       };
     }
 
-    var halfW = Math.max(3, Math.floor((stage.width * 0.5) / gap));
+    /* Header field — wide rectangular composition */
+    var halfW = Math.max(4, Math.floor((stage.width * 0.5) / gap));
     var halfH = Math.max(2, Math.floor((stage.height * 0.5) / gap));
+    /* Keep span wider than tall */
+    if (halfW < halfH * 1.6) halfW = Math.max(halfW, Math.ceil(halfH * 1.6));
     var width = halfW * 2;
     var height = halfH * 2;
-    var spanW = Math.max(6, Math.round(width * 0.7));
-    var spanH = Math.max(4, Math.round(height * 0.7));
-    spanW = Math.min(spanW, Math.max(4, width - 2));
-    spanH = Math.min(spanH, Math.max(3, height - 2));
-    var radius = Math.max(3, Math.min(
-      Math.floor(spanW / 2),
-      Math.floor(spanH / 2),
-      Math.round(Math.min(width, height) * 0.35)
-    ));
+    var spanW = Math.max(8, width);
+    var spanH = Math.max(4, height);
+    var radiusX = Math.max(4, Math.floor(spanW / 2));
+    var radiusY = Math.max(3, Math.floor(spanH / 2));
+    var radius = Math.min(radiusX, radiusY);
 
     return {
       minCol: c.col - halfW,
@@ -210,6 +234,8 @@
       spanW: spanW,
       spanH: spanH,
       radius: radius,
+      radiusX: radiusX,
+      radiusY: radiusY,
       cx: c.col,
       cy: c.row
     };
@@ -217,7 +243,18 @@
 
   function beginAct(drift) {
     updateStage();
-    var s = stageCells(drift);
+    /* Force a fresh center lock at the start of each act */
+    if (stage.ready) {
+      var col = Math.round((stage.cx - origin) / gap);
+      var row = Math.round((stage.cy - origin) / gap);
+      lockedCenter = {
+        col: col,
+        row: row,
+        x: origin + col * gap,
+        y: origin + row * gap
+      };
+    }
+    var s = stageCells();
     actCenter = { col: s.cx, row: s.cy, metrics: s };
     return actCenter;
   }
@@ -476,7 +513,7 @@
     var leftN = Math.max(3, Math.min(5, Math.round(s.spanH / 2.2)));
     var midN = Math.max(3, Math.min(5, leftN + randInt(0, 1)));
     var rightN = Math.max(3, Math.min(5, leftN + randInt(-1, 1)));
-    var useFour = s.spanW >= 10 && Math.random() < 0.4;
+    var useFour = s.spanW >= 10 && Math.random() < 0.55;
     var colL = s.cx - Math.floor(s.spanW / 2);
     var colR = s.cx + Math.floor(s.spanW / 2);
     var colM = s.cx;
@@ -542,10 +579,10 @@
       }
     }
 
-    spine(left, 0.18);
-    spine(mid, 0.16);
-    if (mid2) spine(mid2, 0.16);
-    spine(right, 0.18);
+    spine(left, 0.12);
+    spine(mid, 0.1);
+    if (mid2) spine(mid2, 0.1);
+    spine(right, 0.12);
 
     if (useFour && mid2) {
       flowBetween(left, mid, 0.95);
@@ -612,12 +649,205 @@
     return true;
   }
 
+  function spawnVarianceChart(now, drift) {
+    var s = stageCells(drift);
+    var pts = Math.max(7, Math.min(14, Math.round(s.spanW / 1.4)));
+    var step = Math.max(2, Math.floor(s.spanW / (pts - 1)));
+    var startCol = s.cx - Math.floor(((pts - 1) * step) / 2);
+    var meanRow = s.cy;
+    var maxSpread = Math.max(3, Math.floor(s.spanH / 2));
+    var delay = 0;
+    var means = [];
+    var highs = [];
+    var lows = [];
+
+    var mean = meanRow;
+    for (var i = 0; i < pts; i++) {
+      mean = Math.max(
+        s.cy - Math.floor(maxSpread * 0.45),
+        Math.min(s.cy + Math.floor(maxSpread * 0.45), mean + pick([-2, -1, 0, 0, 1, 2]))
+      );
+      var spread = randInt(Math.max(2, Math.floor(maxSpread * 0.35)), maxSpread);
+      var c = startCol + i * step;
+      var hi = mean - spread;
+      var lo = mean + Math.max(1, Math.floor(spread * (0.55 + Math.random() * 0.45)));
+      if (!inBounds(c, mean, drift) || !inBounds(c, hi, drift) || !inBounds(c, lo, drift)) {
+        if (means.length >= 5) break;
+        continue;
+      }
+      means.push({ col: c, row: mean });
+      highs.push({ col: c, row: hi });
+      lows.push({ col: c, row: lo });
+    }
+    if (means.length < 5) return false;
+
+    /* Baseline axis */
+    addLink(means[0].col, lows[lows.length - 1].row + 1, means[means.length - 1].col, lows[lows.length - 1].row + 1, now, delay, { peak: 0.18 });
+    delay += 35;
+
+    /* Upper / lower band envelopes */
+    for (var u = 0; u < highs.length - 1; u++) {
+      addLink(highs[u].col, highs[u].row, highs[u + 1].col, highs[u + 1].row, now, delay,
+        withArc({ peak: 0.32 }, pick([-10, -14, 10])));
+      delay += 28;
+    }
+    for (var l = 0; l < lows.length - 1; l++) {
+      addLink(lows[l].col, lows[l].row, lows[l + 1].col, lows[l + 1].row, now, delay,
+        withArc({ peak: 0.32 }, pick([10, 14, -10])));
+      delay += 28;
+    }
+
+    /* Mean line through the band */
+    for (var m = 0; m < means.length - 1; m++) {
+      addLink(means[m].col, means[m].row, means[m + 1].col, means[m + 1].row, now, delay,
+        withArc({ peak: 0.55 }, pick([-8, 8, -12, 12])));
+      delay += 36;
+    }
+
+    /* Variance whiskers at each sample */
+    for (var wi = 0; wi < means.length; wi++) {
+      addLink(highs[wi].col, highs[wi].row, lows[wi].col, lows[wi].row, now, delay, { peak: 0.4 });
+      /* Cap ticks */
+      if (inBounds(highs[wi].col - 1, highs[wi].row, drift) && inBounds(highs[wi].col + 1, highs[wi].row, drift)) {
+        addLink(highs[wi].col - 1, highs[wi].row, highs[wi].col + 1, highs[wi].row, now, delay + 12, { peak: 0.36 });
+      }
+      if (inBounds(lows[wi].col - 1, lows[wi].row, drift) && inBounds(lows[wi].col + 1, lows[wi].row, drift)) {
+        addLink(lows[wi].col - 1, lows[wi].row, lows[wi].col + 1, lows[wi].row, now, delay + 18, { peak: 0.36 });
+      }
+      delay += 40;
+    }
+    return true;
+  }
+
+  function spawnViolinChart(now, drift) {
+    var s = stageCells(drift);
+    var count = s.spanW >= 14 ? randInt(2, 3) : 1;
+    var delay = 0;
+    var made = 0;
+    var slotW = Math.floor(s.spanW / count);
+
+    for (var v = 0; v < count; v++) {
+      var centerCol = s.cx - Math.floor(s.spanW / 2) + Math.floor((v + 0.5) * slotW);
+      var top = s.cy - Math.floor(s.spanH / 2);
+      var bottom = s.cy + Math.floor(s.spanH / 2);
+      var steps = Math.max(8, Math.min(16, bottom - top + 1));
+      var maxHalf = Math.max(2, Math.floor(slotW * 0.35));
+      var left = [];
+      var right = [];
+
+      for (var i = 0; i < steps; i++) {
+        var t = i / Math.max(1, steps - 1);
+        /* Density bulge — wider mid, tapered ends (classic violin) */
+        var bulge = Math.sin(Math.PI * t);
+        bulge = Math.pow(bulge, 0.85) * (0.75 + Math.random() * 0.35);
+        if (t < 0.12 || t > 0.88) bulge *= 0.35;
+        var half = Math.max(1, Math.round(maxHalf * bulge));
+        var row = top + Math.round(t * (bottom - top));
+        var lc = centerCol - half;
+        var rc = centerCol + half;
+        if (!inBounds(lc, row, drift) || !inBounds(rc, row, drift)) continue;
+        left.push({ col: lc, row: row });
+        right.push({ col: rc, row: row });
+      }
+      if (left.length < 5) continue;
+
+      /* Center spine */
+      if (inBounds(centerCol, left[0].row, drift) && inBounds(centerCol, left[left.length - 1].row, drift)) {
+        addLink(centerCol, left[0].row, centerCol, left[left.length - 1].row, now, delay, { peak: 0.28 });
+        delay += 30;
+        made++;
+      }
+
+      /* Left / right outlines */
+      for (var L = 0; L < left.length - 1; L++) {
+        addLink(left[L].col, left[L].row, left[L + 1].col, left[L + 1].row, now, delay,
+          withArc({ peak: 0.48 }, pick([-8, -12, 8])));
+        delay += 22;
+        made++;
+      }
+      for (var R = 0; R < right.length - 1; R++) {
+        addLink(right[R].col, right[R].row, right[R + 1].col, right[R + 1].row, now, delay,
+          withArc({ peak: 0.48 }, pick([8, 12, -8])));
+        delay += 22;
+        made++;
+      }
+
+      /* Width ribs — mirrored density samples */
+      for (var rib = 1; rib < left.length - 1; rib += 2) {
+        addLink(left[rib].col, left[rib].row, right[rib].col, right[rib].row, now, delay, { peak: 0.3 });
+        delay += 28;
+        made++;
+      }
+
+      /* Median tick */
+      var mid = left[Math.floor(left.length / 2)];
+      var midR = right[Math.floor(right.length / 2)];
+      if (mid && midR) {
+        addLink(mid.col, mid.row, midR.col, midR.row, now, delay, { peak: 0.55, weight: 1.2 });
+        delay += 40;
+        made++;
+      }
+    }
+
+    return made >= 10;
+  }
+
+  function spawnDnaChart(now, drift) {
+    var s = stageCells(drift);
+    var len = Math.max(10, Math.min(18, s.spanW));
+    var step = Math.max(1, Math.floor(s.spanW / (len - 1)));
+    var startCol = s.cx - Math.floor(((len - 1) * step) / 2);
+    var amp = Math.max(2, Math.min(Math.floor(s.spanH / 2), Math.round(s.spanH * 0.42)));
+    var cycles = 1.5 + Math.random() * 1.25;
+    var delay = 0;
+    var strandA = [];
+    var strandB = [];
+
+    for (var i = 0; i < len; i++) {
+      var t = i / Math.max(1, len - 1);
+      var angle = t * Math.PI * 2 * cycles;
+      var c = startCol + i * step;
+      var rowA = s.cy + Math.round(Math.sin(angle) * amp);
+      var rowB = s.cy + Math.round(Math.sin(angle + Math.PI) * amp);
+      if (!inBounds(c, rowA, drift) || !inBounds(c, rowB, drift)) {
+        if (strandA.length >= 6) break;
+        continue;
+      }
+      strandA.push({ col: c, row: rowA });
+      strandB.push({ col: c, row: rowB });
+    }
+    if (strandA.length < 6) return false;
+
+    /* Twin helix strands — sideways */
+    for (var a = 0; a < strandA.length - 1; a++) {
+      addLink(strandA[a].col, strandA[a].row, strandA[a + 1].col, strandA[a + 1].row, now, delay,
+        withArc({ peak: 0.5 }, pick([-10, -14, 10, 14])));
+      delay += 28;
+    }
+    for (var b = 0; b < strandB.length - 1; b++) {
+      addLink(strandB[b].col, strandB[b].row, strandB[b + 1].col, strandB[b + 1].row, now, delay,
+        withArc({ peak: 0.5 }, pick([10, 14, -10, -14])));
+      delay += 28;
+    }
+
+    /* Base-pair rungs between strands */
+    for (var r = 0; r < strandA.length; r++) {
+      if (r % 2 === 1 && Math.random() < 0.25) continue;
+      addLink(strandA[r].col, strandA[r].row, strandB[r].col, strandB[r].row, now, delay, {
+        peak: 0.38,
+        drawEnd: 0.22
+      });
+      delay += 36;
+    }
+    return true;
+  }
+
   function spawnLineChart(now, drift) {
     var originN = originForChart(drift);
     if (!originN) return false;
     var s = originN.metrics;
-    var pts = Math.max(6, Math.min(10, Math.round(s.spanW / 2)));
-    var step = Math.max(2, Math.floor(s.spanW / (pts - 1)));
+    var pts = Math.max(8, Math.min(14, Math.round(s.spanW / 1.5)));
+    var step = Math.max(1, Math.floor(s.spanW / (pts - 1)));
     var delay = 0;
     var points = [];
     var y = originN.row - Math.floor(s.spanH * 0.4);
@@ -629,39 +859,227 @@
     }
     if (points.length < 4) return false;
 
-    addLink(originN.col, originN.row, points[points.length - 1].col, originN.row, now, delay, { peak: 0.24 });
-    delay += 45;
+    addLink(originN.col, originN.row, points[points.length - 1].col, originN.row, now, delay, { peak: 0.2 });
+    delay += 35;
 
     for (var p = 0; p < points.length - 1; p++) {
       addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-        withArc({ peak: 0.46 }, pick([-14, -20, 14, 20])));
-      delay += 50;
+        withArc({ peak: 0.5 }, pick([-14, -20, 14, 20])));
+      delay += 36;
     }
     return true;
   }
 
-  function spawnScatter(now, drift) {
-    var originN = originForChart(drift);
-    if (!originN) return false;
-    var s = originN.metrics;
-    var wCells = s.spanW;
-    var hCells = s.spanH;
-    if (!inBounds(originN.col + wCells, originN.row - hCells, drift)) return false;
+  function spawnMultiLine(now, drift) {
+    var s = stageCells(drift);
+    var series = randInt(2, 4);
+    var pts = Math.max(8, Math.min(14, Math.round(s.spanW / 1.5)));
+    var step = Math.max(1, Math.floor(s.spanW / (pts - 1)));
+    var startCol = s.cx - Math.floor(((pts - 1) * step) / 2);
     var delay = 0;
+    var made = 0;
 
-    addLink(originN.col, originN.row, originN.col + wCells, originN.row, now, delay, { peak: 0.24 });
-    delay += 40;
+    for (var ser = 0; ser < series; ser++) {
+      var y = s.cy + randInt(-Math.floor(s.spanH / 3), Math.floor(s.spanH / 3));
+      var points = [];
+      for (var i = 0; i < pts; i++) {
+        y = Math.max(s.cy - Math.floor(s.spanH / 2), Math.min(s.cy + Math.floor(s.spanH / 2), y + pick([-2, -1, 0, 1, 2])));
+        var c = startCol + i * step;
+        if (!inBounds(c, y, drift)) break;
+        points.push({ col: c, row: y });
+      }
+      if (points.length < 4) continue;
+      for (var p = 0; p < points.length - 1; p++) {
+        addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
+          withArc({ peak: 0.42 + ser * 0.04 }, pick([-16, -22, 16, 22])));
+        delay += 24;
+        made++;
+      }
+      delay += 60;
+    }
+    return made >= 8;
+  }
 
-    var dots = Math.max(8, Math.round((wCells * hCells) / 10));
-    for (var i = 0; i < dots; i++) {
-      var c = originN.col + randInt(1, wCells - 1);
-      var r = originN.row - randInt(1, hCells - 1);
-      if (!inBounds(c, r, drift)) continue;
-      addLink(c - 1, r, c + 1, r, now, delay, { peak: 0.4, life: 4200 });
-      addLink(c, r - 1, c, r + 1, now, delay + 20, { peak: 0.4, life: 4200 });
+  function spawnWaveCurves(now, drift) {
+    var s = stageCells(drift);
+    var waves = randInt(2, 4);
+    var pts = Math.max(10, Math.min(18, s.spanW));
+    var step = Math.max(1, Math.floor(s.spanW / (pts - 1)));
+    var startCol = s.cx - Math.floor(((pts - 1) * step) / 2);
+    var amp = Math.max(2, Math.floor(s.spanH / 2.4));
+    var delay = 0;
+    var made = 0;
+
+    for (var wi = 0; wi < waves; wi++) {
+      var phase = Math.random() * Math.PI * 2;
+      var cycles = 1.2 + Math.random() * 1.8;
+      var rowShift = randInt(-1, 1);
+      var points = [];
+      for (var i = 0; i < pts; i++) {
+        var t = i / Math.max(1, pts - 1);
+        var c = startCol + i * step;
+        var row = s.cy + rowShift + Math.round(Math.sin(t * Math.PI * 2 * cycles + phase) * amp * (0.55 + wi * 0.12));
+        if (!inBounds(c, row, drift)) continue;
+        points.push({ col: c, row: row });
+      }
+      if (points.length < 5) continue;
+      for (var p = 0; p < points.length - 1; p++) {
+        addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
+          withArc({ peak: 0.46 }, pick([-12, -18, 12, 18])));
+        delay += 20;
+        made++;
+      }
+      delay += 50;
+    }
+    return made >= 10;
+  }
+
+  function spawnParallelCoords(now, drift) {
+    var s = stageCells(drift);
+    var axes = Math.max(4, Math.min(7, Math.round(s.spanW / 3)));
+    var step = Math.max(2, Math.floor(s.spanW / (axes - 1)));
+    var startCol = s.cx - Math.floor(((axes - 1) * step) / 2);
+    var top = s.cy - Math.floor(s.spanH / 2);
+    var bottom = s.cy + Math.floor(s.spanH / 2);
+    var delay = 0;
+    var made = 0;
+    var axisCols = [];
+
+    for (var a = 0; a < axes; a++) {
+      var c = startCol + a * step;
+      if (!inBounds(c, top, drift) || !inBounds(c, bottom, drift)) continue;
+      axisCols.push(c);
+      addLink(c, top, c, bottom, now, delay, { peak: 0.18 });
+      delay += 20;
+      made++;
+    }
+    if (axisCols.length < 3) return false;
+
+    var series = randInt(4, 7);
+    for (var ser = 0; ser < series; ser++) {
+      var points = [];
+      for (var i = 0; i < axisCols.length; i++) {
+        var r = randInt(top + 1, bottom - 1);
+        if (!inBounds(axisCols[i], r, drift)) continue;
+        points.push({ col: axisCols[i], row: r });
+      }
+      if (points.length < 3) continue;
+      for (var p = 0; p < points.length - 1; p++) {
+        addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
+          withArc({ peak: 0.4 }, pick([-18, -26, 18, 26])));
+        delay += 28;
+        made++;
+      }
       delay += 40;
     }
-    return true;
+    return made >= 10;
+  }
+
+  function spawnScatter(now, drift) {
+    var s = stageCells(drift);
+    var halfW = Math.floor(s.spanW / 2);
+    var halfH = Math.floor(s.spanH / 2);
+    var dots = Math.max(14, Math.min(36, Math.round((s.spanW * s.spanH) / 6)));
+    var delay = 0;
+    var made = 0;
+    var used = {};
+
+    for (var i = 0; i < dots * 3 && made < dots; i++) {
+      var c = s.cx + randInt(-halfW, halfW);
+      var r = s.cy + randInt(-halfH, halfH);
+      var id = c + ',' + r;
+      if (used[id] || !inBounds(c, r, drift)) continue;
+      used[id] = true;
+      addLink(c, r, c, r, now, delay, {
+        point: true,
+        peak: 0.55 + Math.random() * 0.25,
+        life: 4800 + Math.random() * 2800,
+        drawEnd: 0.12,
+        fadeStart: 0.7
+      });
+      delay += 28;
+      made++;
+    }
+    return made >= 10;
+  }
+
+  function spawnStreets(now, drift) {
+    var s = stageCells(drift);
+    var minC = s.cx - Math.floor(s.spanW / 2);
+    var maxC = s.cx + Math.floor(s.spanW / 2);
+    var minR = s.cy - Math.floor(s.spanH / 2);
+    var maxR = s.cy + Math.floor(s.spanH / 2);
+    var delay = 0;
+    var made = 0;
+
+    function seg(c0, r0, c1, r1, peak, curved) {
+      if (!inBounds(c0, r0, drift) || !inBounds(c1, r1, drift)) return false;
+      if (c0 === c1 && r0 === r1) return false;
+      var opts = { peak: peak || 0.4, drawEnd: 0.24 };
+      if (curved) opts = withArc(opts, pick([-12, -18, 12, 18, -22, 22]));
+      if (addLink(c0, r0, c1, r1, now, delay, opts)) {
+        delay += 32;
+        made++;
+        return true;
+      }
+      return false;
+    }
+
+    /* Primary avenues — long, slightly wandering horizontals */
+    var avenueCount = Math.max(3, Math.min(5, Math.round(s.spanH / 3)));
+    var avenues = [];
+    for (var a = 0; a < avenueCount; a++) {
+      var row = minR + Math.round(((a + 0.5) / avenueCount) * (maxR - minR));
+      row += randInt(-1, 1);
+      var cols = [];
+      var c = minC;
+      while (c <= maxC) {
+        cols.push({ col: c, row: row + (cols.length % 5 === 0 ? pick([-1, 0, 0, 1]) : 0) });
+        c += randInt(2, 4);
+      }
+      for (var i = 0; i < cols.length - 1; i++) {
+        seg(cols[i].col, cols[i].row, cols[i + 1].col, cols[i + 1].row, 0.48, Math.random() < 0.35);
+      }
+      avenues.push(cols);
+    }
+
+    /* Cross streets — vertical connectors with irregular spacing */
+    var streetCount = Math.max(4, Math.min(7, Math.round(s.spanW / 3)));
+    for (var st = 0; st < streetCount; st++) {
+      var col = minC + Math.round(((st + 0.4) / streetCount) * (maxC - minC));
+      col += randInt(-1, 1);
+      var r = minR + randInt(0, 2);
+      while (r < maxR - 1) {
+        var nextR = Math.min(maxR, r + randInt(2, 5));
+        var wobble = pick([-1, 0, 0, 1]);
+        seg(col, r, col + wobble, nextR, 0.36, Math.random() < 0.4);
+        col = col + wobble;
+        r = nextR;
+      }
+    }
+
+    /* Diagonal connectors — alley shortcuts / angled roads */
+    var diagonals = randInt(4, 8);
+    for (var d = 0; d < diagonals; d++) {
+      var dc = randInt(minC + 1, maxC - 2);
+      var dr = randInt(minR + 1, maxR - 2);
+      var len = randInt(3, 6);
+      var dirC = pick([-1, 1]);
+      var dirR = pick([-1, 1]);
+      seg(dc, dr, dc + dirC * len, dr + dirR * Math.max(2, Math.floor(len * 0.7)), 0.32, true);
+    }
+
+    /* Short blocks / cul-de-sac stubs off avenues */
+    for (var av = 0; av < avenues.length; av++) {
+      var path = avenues[av];
+      for (var p = 1; p < path.length - 1; p += randInt(2, 3)) {
+        var stubLen = randInt(2, 4);
+        var stubDir = pick([-1, 1]);
+        seg(path[p].col, path[p].row, path[p].col, path[p].row + stubDir * stubLen, 0.3, false);
+      }
+    }
+
+    return made >= 12;
   }
 
   function spawnFunnel(now, drift) {
@@ -693,8 +1111,8 @@
     var originN = originForChart(drift);
     if (!originN) return false;
     var s = originN.metrics;
-    var pts = Math.max(5, Math.min(8, Math.round(s.spanW / 2)));
-    var step = Math.max(2, Math.floor(s.spanW / (pts - 1)));
+    var pts = Math.max(7, Math.min(12, Math.round(s.spanW / 1.6)));
+    var step = Math.max(1, Math.floor(s.spanW / (pts - 1)));
     var delay = 0;
     var points = [];
     var y = originN.row - Math.floor(s.spanH * 0.45);
@@ -707,15 +1125,15 @@
     if (points.length < 4) return false;
 
     addLink(points[0].col, originN.row, points[points.length - 1].col, originN.row, now, delay, { peak: 0.2 });
-    delay += 35;
+    delay += 30;
     for (var p = 0; p < points.length - 1; p++) {
       addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-        withArc({ peak: 0.44 }, pick([-12, -18, 12, 18])));
-      delay += 45;
+        withArc({ peak: 0.48 }, pick([-12, -18, 12, 18])));
+      delay += 32;
     }
     for (var v = 0; v < points.length; v++) {
-      addLink(points[v].col, points[v].row, points[v].col, originN.row, now, delay, { peak: 0.26 });
-      delay += 35;
+      addLink(points[v].col, points[v].row, points[v].col, originN.row, now, delay, { peak: 0.24 });
+      delay += 26;
     }
     return true;
   }
@@ -805,109 +1223,203 @@
     return made >= 8;
   }
 
+  function spawnGuilloche(now, drift) {
+    var s = stageCells(drift);
+    var hub = { col: s.cx, row: s.cy };
+    if (!inBounds(hub.col, hub.row, drift)) return false;
+    var delay = 0;
+    var made = 0;
+    var maxRX = Math.max(5, s.radiusX || Math.floor(s.spanW / 2));
+    var maxRY = Math.max(3, s.radiusY || Math.floor(s.spanH / 2));
+    var prevMax = maxLinks;
+    maxLinks = Math.max(maxLinks, 80);
+
+    function ringPoints(rx, ry, count, phase) {
+      var pts = [];
+      for (var i = 0; i < count; i++) {
+        var a = phase + (Math.PI * 2 * i) / count;
+        var c = hub.col + Math.round(Math.cos(a) * rx);
+        var r = hub.row + Math.round(Math.sin(a) * ry);
+        if (inBounds(c, r, drift)) pts.push({ col: c, row: r });
+      }
+      return pts;
+    }
+
+    function strokeClosed(pts, peak, lift) {
+      if (pts.length < 5) return;
+      for (var i = 0; i < pts.length; i++) {
+        var a = pts[i];
+        var b = pts[(i + 1) % pts.length];
+        addLink(a.col, a.row, b.col, b.row, now, delay, withArc({ peak: peak }, lift));
+        delay += 16;
+        made++;
+      }
+    }
+
+    /* Concentric elliptical guilloche — wide rectangle, not a circle */
+    var rings = Math.max(3, Math.min(5, maxRY));
+    for (var ri = 0; ri < rings; ri++) {
+      var t = (ri + 1) / rings;
+      var rx = Math.max(3, Math.round(maxRX * t));
+      var ry = Math.max(2, Math.round(maxRY * t));
+      var count = Math.max(10, Math.min(24, rx * 3));
+      var phase = (ri % 2) * (Math.PI / count);
+      var pts = ringPoints(rx, ry, count, phase);
+      strokeClosed(pts, 0.34 + ri * 0.04, pick([-10, -14, 10, 14]));
+    }
+
+    /* Interlocking petal arcs — stretched horizontally */
+    var petals = randInt(6, 10);
+    for (var p = 0; p < petals; p++) {
+      var ang = (Math.PI * 2 * p) / petals;
+      var pc = hub.col + Math.round(Math.cos(ang) * Math.max(2, Math.floor(maxRX * 0.32)));
+      var pr = hub.row + Math.round(Math.sin(ang) * Math.max(2, Math.floor(maxRY * 0.32)));
+      if (!inBounds(pc, pr, drift)) continue;
+      var lobe = [];
+      var lobeN = 8;
+      var lobeRX = Math.max(2, Math.floor(maxRX * 0.28));
+      var lobeRY = Math.max(2, Math.floor(maxRY * 0.38));
+      for (var li = 0; li < lobeN; li++) {
+        var la = ang + (Math.PI * 2 * li) / lobeN;
+        var lc = pc + Math.round(Math.cos(la) * lobeRX);
+        var lr = pr + Math.round(Math.sin(la) * lobeRY);
+        if (inBounds(lc, lr, drift)) lobe.push({ col: lc, row: lr });
+      }
+      strokeClosed(lobe, 0.3, pick([-16, -22, 16, 22]));
+    }
+
+    /* Fine wavy engraved bands across the wide field */
+    var bands = randInt(3, 5);
+    var bandPts = Math.max(10, Math.min(18, s.spanW));
+    var step = Math.max(1, Math.floor(s.spanW / (bandPts - 1)));
+    var startCol = s.cx - Math.floor(((bandPts - 1) * step) / 2);
+    var amp = Math.max(1, Math.floor(s.spanH / 5));
+    for (var b = 0; b < bands; b++) {
+      var base = s.cy - Math.floor(s.spanH / 2) + Math.round(((b + 1) / (bands + 1)) * s.spanH);
+      var phase2 = b * 0.7;
+      var wave = [];
+      for (var i = 0; i < bandPts; i++) {
+        var wt = i / Math.max(1, bandPts - 1);
+        var c = startCol + i * step;
+        var row = base + Math.round(Math.sin(wt * Math.PI * 4 + phase2) * amp);
+        if (inBounds(c, row, drift)) wave.push({ col: c, row: row });
+      }
+      for (var wi = 0; wi < wave.length - 1; wi++) {
+        addLink(wave[wi].col, wave[wi].row, wave[wi + 1].col, wave[wi + 1].row, now, delay,
+          withArc({ peak: 0.28 }, pick([-8, 8, -12, 12])));
+        delay += 14;
+        made++;
+      }
+    }
+
+    maxLinks = prevMax;
+    return made >= 16;
+  }
 
   function spawnFireworkBurst(now, drift, delayBase, asFinale) {
     if (!actCenter) return 0;
     var s = actCenter.metrics;
-    var spreadX = Math.max(1, Math.floor(s.spanW / 3));
-    var spreadY = Math.max(1, Math.floor(s.spanH / 3));
-    var hubCol = actCenter.col + randInt(-spreadX, spreadX);
-    var hubRow = actCenter.row + randInt(-spreadY, spreadY);
+    /* Anchor in the header center — a composed crest, not scattered pops */
+    var hubCol = actCenter.col;
+    var hubRow = actCenter.row;
     if (!inBounds(hubCol, hubRow, drift)) {
-      hubCol = actCenter.col;
-      hubRow = actCenter.row;
+      hubCol = s.cx;
+      hubRow = s.cy;
     }
 
-    var radius = Math.max(4, Math.min(s.radius + 2, Math.floor(Math.min(s.spanW, s.spanH) / 2)));
-    var rays = randInt(12, 18);
+    var rx = Math.max(5, s.radiusX || Math.floor(s.spanW / 2));
+    var ry = Math.max(3, s.radiusY || Math.floor(s.spanH / 2));
+    var rays = randInt(10, 14);
     var delay = delayBase || 0;
-    var life = (asFinale ? 7800 : 6200) + Math.random() * 3200;
+    var life = (asFinale ? 9000 : 7800) + Math.random() * 2400;
     var added = 0;
     var tips = [];
+    var phase = Math.random() * 0.12;
 
     for (var i = 0; i < rays; i++) {
-      var angle = (Math.PI * 2 * i) / rays + (Math.random() - 0.5) * 0.28;
-      var r = Math.max(3, Math.round(radius * (0.5 + Math.random() * 0.55)));
-      var tipCol = hubCol + Math.round(Math.cos(angle) * r);
-      var tipRow = hubRow + Math.round(Math.sin(angle) * r);
+      var angle = phase + (Math.PI * 2 * i) / rays;
+      var scale = 0.82 + Math.random() * 0.18;
+      var tipCol = hubCol + Math.round(Math.cos(angle) * rx * scale);
+      var tipRow = hubRow + Math.round(Math.sin(angle) * ry * scale);
       if (!inBounds(tipCol, tipRow, drift)) continue;
-      tips.push({ col: tipCol, row: tipRow });
+      tips.push({ col: tipCol, row: tipRow, angle: angle });
 
-      var useArc = Math.random() < 0.7;
+      /* Long, soft champagne arcs from the hub — elliptical bloom */
       if (addLink(hubCol, hubRow, tipCol, tipRow, now, delay, {
-        peak: asFinale ? 0.82 : 0.62,
+        peak: asFinale ? 0.48 : 0.4,
         life: life,
-        drawEnd: 0.1 + Math.random() * 0.1,
-        fadeStart: 0.58 + Math.random() * 0.14,
-        curve: useArc ? 'arc' : null,
-        arcLift: useArc ? (pick([-1, 1]) * gap * randInt(2, 6)) : 0,
-        finale: !!asFinale,
-        weight: asFinale ? 1.45 : 1.2
-      })) added++;
-
-      /* Tip sparkle — short radial flick, not a plus-square */
-      if (Math.random() < 0.75) {
-        var sparkR = randInt(1, 2);
-        var sparkA = angle + (Math.random() - 0.5) * 0.8;
-        var sc = tipCol + Math.round(Math.cos(sparkA) * sparkR);
-        var sr = tipRow + Math.round(Math.sin(sparkA) * sparkR);
-        if (inBounds(sc, sr, drift)) {
-          addLink(tipCol, tipRow, sc, sr, now, delay + 30, {
-            peak: asFinale ? 0.9 : 0.7,
-            life: life * 0.65,
-            drawEnd: 0.08,
-            fadeStart: 0.5,
-            finale: !!asFinale,
-            weight: 1.1
-          });
-          added++;
-        }
-      }
-      delay += 14 + Math.floor(Math.random() * 18);
-    }
-
-    /* Bloom arcs between nearby tips */
-    for (var n = 0; n < tips.length; n++) {
-      var a = tips[n];
-      var b = tips[(n + 1) % tips.length];
-      var dx = a.col - b.col;
-      var dy = a.row - b.row;
-      if (Math.sqrt(dx * dx + dy * dy) > radius * 1.2) continue;
-      if (Math.random() > 0.7) continue;
-      if (addLink(a.col, a.row, b.col, b.row, now, (delayBase || 0) + 160 + n * 20, {
-        peak: asFinale ? 0.5 : 0.36,
-        life: life * 0.8,
+        drawEnd: 0.28 + Math.random() * 0.1,
+        fadeStart: 0.72 + Math.random() * 0.08,
         curve: 'arc',
         arcLift: pick([-1, 1]) * gap * randInt(2, 4),
         finale: !!asFinale,
-        weight: 1.1
+        weight: 0.9
+      })) added++;
+
+      /* Jewel tip — a single soft point, no sparkle clutter */
+      addLink(tipCol, tipRow, tipCol, tipRow, now, delay + 80, {
+        point: true,
+        peak: asFinale ? 0.62 : 0.52,
+        life: life * 0.85,
+        drawEnd: 0.2,
+        fadeStart: 0.68,
+        finale: !!asFinale
+      });
+      added++;
+      delay += 48;
+    }
+
+    /* Outer halo — elegant ellipse connecting the tips */
+    for (var n = 0; n < tips.length; n++) {
+      var a = tips[n];
+      var b = tips[(n + 1) % tips.length];
+      if (addLink(a.col, a.row, b.col, b.row, now, (delayBase || 0) + 220 + n * 36, {
+        peak: 0.26,
+        life: life * 0.9,
+        drawEnd: 0.35,
+        fadeStart: 0.74,
+        curve: 'arc',
+        arcLift: pick([-1, 1]) * gap * 2,
+        finale: !!asFinale,
+        weight: 0.75
       })) added++;
     }
+
+    /* Soft center point */
+    addLink(hubCol, hubRow, hubCol, hubRow, now, delayBase || 0, {
+      point: true,
+      peak: asFinale ? 0.7 : 0.58,
+      life: life,
+      drawEnd: 0.15,
+      fadeStart: 0.7,
+      finale: !!asFinale
+    });
+    added++;
 
     return added;
   }
 
   function spawnFireworks(now, drift) {
     if (!actCenter) beginAct(drift);
-    var bursts = randInt(2, 3);
-    var delay = 0;
-    var total = 0;
-    for (var i = 0; i < bursts; i++) {
-      total += spawnFireworkBurst(now, drift, delay, false);
-      delay += 220 + Math.floor(Math.random() * 280);
-    }
-    return total >= 8;
+    /* Single centered bloom for the header — luxurious and composed */
+    return spawnFireworkBurst(now, drift, 0, false) >= 6;
   }
 
   function spawnFinaleWave(now, drift) {
-    var bursts = randInt(3, 5);
-    var delay = 0;
-    var total = 0;
-    for (var i = 0; i < bursts; i++) {
-      total += spawnFireworkBurst(now, drift, delay, true);
-      delay += 160 + Math.floor(Math.random() * 240);
+    var before = links.length;
+    var pickAct = pick([
+      spawnSankey, spawnLineChart, spawnMultiLine, spawnWaveCurves,
+      spawnAreaChart, spawnVarianceChart, spawnParallelCoords, spawnGuilloche, spawnFireworks
+    ]);
+    pickAct(now, drift);
+    for (var i = before; i < links.length; i++) {
+      links[i].finale = true;
+      links[i].peak = Math.min(0.92, links[i].peak * 1.4);
+      links[i].life = Math.max(links[i].life, 8000 + Math.random() * 2800);
+      links[i].weight = Math.max(links[i].weight || 1, 1.25);
+      links[i].fadeStart = Math.min(links[i].fadeStart, 0.7);
     }
-    return total > 0;
+    return links.length > before;
   }
 
   function startFinale(now) {
@@ -977,14 +1489,20 @@
     beginAct(drift);
     /* Spectacle-weighted lineup */
     var catalog = [
-      { name: 'hist', fn: spawnHistogram, w: 10 },
-      { name: 'fireworks', fn: spawnFireworks, w: 8 },
-      { name: 'bar', fn: spawnBarChart, w: 5 },
-      { name: 'sankey', fn: spawnSankey, w: 5 },
-      { name: 'arc', fn: spawnArcDiagram, w: 2 },
-      { name: 'bipartite', fn: spawnBipartite, w: 2 },
-      { name: 'line', fn: spawnLineChart, w: 1 },
-      { name: 'area', fn: spawnAreaChart, w: 1 }
+      { name: 'fireworks', fn: spawnFireworks, w: 10 },
+      { name: 'guilloche', fn: spawnGuilloche, w: 10 },
+      { name: 'waves', fn: spawnWaveCurves, w: 8 },
+      { name: 'line', fn: spawnLineChart, w: 7 },
+      { name: 'multiline', fn: spawnMultiLine, w: 7 },
+      { name: 'sankey', fn: spawnSankey, w: 7 },
+      { name: 'area', fn: spawnAreaChart, w: 6 },
+      { name: 'parallel', fn: spawnParallelCoords, w: 5 },
+      { name: 'variance', fn: spawnVarianceChart, w: 5 },
+      { name: 'bipartite', fn: spawnBipartite, w: 4 },
+      { name: 'hist', fn: spawnHistogram, w: 3 },
+      { name: 'bar', fn: spawnBarChart, w: 2 },
+      { name: 'streets', fn: spawnStreets, w: 2 },
+      { name: 'scatter', fn: spawnScatter, w: 2 }
     ];
 
     var pool = [];
@@ -1004,14 +1522,19 @@
     }
 
     /* Amplify this act — brighter peaks, shared choreography timing */
-    for (var L = before; L < links.length; L++) {
-      links[L].peak = Math.min(0.75, links[L].peak * 1.55);
-      links[L].life = Math.max(links[L].life, 5800);
-      links[L].fadeStart = Math.max(links[L].fadeStart, 0.74);
-      links[L].drawEnd = Math.min(links[L].drawEnd, 0.28);
+    if (choice.name !== 'fireworks') {
+      for (var L = before; L < links.length; L++) {
+        links[L].peak = Math.min(0.75, links[L].peak * 1.55);
+        links[L].life = Math.max(links[L].life, 5800);
+        links[L].fadeStart = Math.max(links[L].fadeStart, 0.74);
+        links[L].drawEnd = Math.min(links[L].drawEnd, 0.28);
+      }
     }
 
-    if (choice.name !== 'sankey' && choice.name !== 'bar' && choice.name !== 'hist' && choice.name !== 'fireworks') {
+    if (choice.name !== 'line' && choice.name !== 'multiline' && choice.name !== 'waves' &&
+        choice.name !== 'area' && choice.name !== 'sankey' && choice.name !== 'variance' &&
+        choice.name !== 'parallel' && choice.name !== 'bipartite' && choice.name !== 'guilloche' &&
+        choice.name !== 'fireworks') {
       recentTypes.push(choice.name);
       if (recentTypes.length > 1) recentTypes.shift();
     }
@@ -1113,10 +1636,22 @@
     }
 
     updateStage();
-    var drift = driftAt(now);
-    var metrics = stageCells(drift);
-    var center = liveCenter(drift);
+    updateParallax();
+    var center = actCenter
+      ? { col: actCenter.col, row: actCenter.row, x: origin + actCenter.col * gap, y: origin + actCenter.row * gap }
+      : liveCenter();
     ctx.clearRect(0, 0, w, h);
+
+    /* Fade with the hero as it leaves — art still parallaxes behind content */
+    var scrollFade = 1;
+    if (stage.ready) {
+      if (stage.bottom <= 40) scrollFade = 0;
+      else if (stage.top < 0) {
+        scrollFade = Math.max(0, Math.min(1, stage.bottom / Math.max(stage.height * 0.85, 1)));
+      }
+    } else {
+      scrollFade = 0;
+    }
 
     var degree = {};
     function key(c, r) { return c + ',' + r; }
@@ -1136,23 +1671,25 @@
         continue;
       }
 
-      var scale = Math.min(
-        metrics.spanW / (L.refSpanW || metrics.spanW),
-        metrics.spanH / (L.refSpanH || metrics.spanH)
-      );
-      if (!isFinite(scale) || scale <= 0) scale = 1;
-      var a = resolvePoint(L.ox1, L.oy1, drift, scale, center);
-      var b = resolvePoint(L.ox2, L.oy2, drift, scale, center);
+      /* Size is locked at spawn — no live rescaling that shifts positions */
+      var a = resolvePoint(L.ox1, L.oy1, 0, 1, center);
+      var b = resolvePoint(L.ox2, L.oy2, 0, 1, center);
       var p = age / L.life;
       var progress = p < L.drawEnd ? easeOutCubic(p / L.drawEnd) : 1;
       var visibility = p < L.fadeStart
         ? 1
         : 1 - easeInOut((p - L.fadeStart) / (1 - L.fadeStart));
       var falloff = Math.min(stageFalloff(a.x, a.y), stageFalloff(b.x, b.y));
-      var alpha = L.peak * visibility * falloff;
+      var alpha = L.peak * visibility * Math.max(falloff, scrollFade * 0.35) * scrollFade;
       if (alpha < 0.012) continue;
 
-      var end = strokeLink(a, b, progress, alpha, L.curve, L.arcLift * scale, L.weight);
+      if (L.point) {
+        var pop = progress < 1 ? progress : 1;
+        drawDot(a.x, a.y, Math.min(1, alpha * 2.2), 0.7 + pop * 0.35, true, false);
+        continue;
+      }
+
+      var end = strokeLink(a, b, progress, alpha, L.curve, L.arcLift, L.weight);
       var degA = degree[key(L.ox1, L.oy1)] || 1;
       var degB = degree[key(L.ox2, L.oy2)] || 1;
       var inFocus = progress > 0.05 && visibility > 0.5;
@@ -1182,11 +1719,18 @@
   }
 
   resize();
+  updateParallax();
   window.addEventListener('resize', onViewportChange);
-  window.addEventListener('scroll', updateStage, { passive: true });
+  window.addEventListener('scroll', function () {
+    updateParallax();
+    updateStage();
+  }, { passive: true });
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', onViewportChange);
-    window.visualViewport.addEventListener('scroll', updateStage);
+    window.visualViewport.addEventListener('scroll', function () {
+      updateParallax();
+      updateStage();
+    });
   }
   if (typeof ResizeObserver !== 'undefined') {
     var heroEl = document.querySelector('main > .hero:not(.about-hero)');
