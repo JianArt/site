@@ -186,13 +186,15 @@ img {
   display: block;
   border-radius: var(--radius);
   overflow: hidden;
-  aspect-ratio: 615 / 270;
   background: #0a0a0a;
+  /* --ar is set per-card inline, matching the exact block proportions
+     measured on the live site (varies by row); falls back to the
+     common half-card ratio if unset */
+  aspect-ratio: var(--ar, 615 / 270);
 }
 
 .project-card.wide {
   grid-column: 1 / -1;
-  aspect-ratio: 1240 / 469;
 }
 
 .project-card img.cover {
@@ -239,7 +241,6 @@ img {
 @media (max-width: 900px) {
   .project-grid { grid-template-columns: 1fr; }
   .project-card { aspect-ratio: 16 / 10; }
-  .project-card.wide { aspect-ratio: 16 / 10; }
 }
 
 /* ---------- Case study page ---------- */
@@ -264,9 +265,14 @@ img {
 
 .feature img {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 605 / 286;
   object-fit: cover;
   border-radius: var(--radius);
+  transition: transform 0.5s ease;
+}
+
+.feature:hover img {
+  transform: scale(1.03);
 }
 
 .feature h3 {
@@ -294,9 +300,14 @@ img {
 
 .gallery img {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 605 / 286;
   object-fit: cover;
   border-radius: var(--radius);
+  transition: transform 0.5s ease;
+}
+
+.gallery img:hover {
+  transform: scale(1.03);
 }
 
 .notables-section {
@@ -432,4 +443,27 @@ img {
 
 main {
   padding-top: 0;
+}
+
+/* ---------- Scroll-reveal ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
