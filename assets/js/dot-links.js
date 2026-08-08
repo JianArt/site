@@ -12,8 +12,8 @@
   var gap = 16;
   var origin = gap / 2;
   var links = [];
-  var maxLinksNormal = 36;
-  var maxLinksFinale = 110;
+  var maxLinksNormal = 28;
+  var maxLinksFinale = 28;
   var maxLinks = maxLinksNormal;
   var cols = 0;
   var rows = 0;
@@ -71,11 +71,17 @@
     var fieldW = Math.max(0, fieldRight - fieldLeft);
     var fieldH = Math.max(0, fieldBottom - fieldTop);
 
-    /* Compose a wide rectangle in the header — avoid square proportions */
-    var aspectMin = 1.9;
-    stage.width = Math.max(140, fieldW * 0.96);
-    stage.height = Math.max(72, Math.min(fieldH * 0.9, stage.width / aspectMin));
-    if (stage.height > fieldH * 0.92) stage.height = Math.max(64, fieldH * 0.92);
+    /* Compose a wide landscape rectangle in the header — never square */
+    var aspectMin = 2.4;
+    stage.width = Math.max(140, fieldW * 0.7);
+    stage.height = Math.min(fieldH * 0.88, stage.width / aspectMin);
+    if (stage.height < 56) stage.height = Math.min(fieldH * 0.88, 56);
+    if (stage.width / Math.max(1, stage.height) < aspectMin) {
+      stage.height = stage.width / aspectMin;
+    }
+    if (stage.height > fieldH * 0.92) {
+      stage.height = Math.max(48, fieldH * 0.92);
+    }
     stage.cx = (fieldLeft + fieldRight) / 2;
     stage.cy = (fieldTop + fieldBottom) / 2;
     stage.left = stage.cx - stage.width / 2;
@@ -84,7 +90,7 @@
     stage.bottom = stage.cy + stage.height / 2;
 
     stage.ready =
-      stage.height > 64 &&
+      stage.height > 48 &&
       stage.width > 100 &&
       stage.bottom > 24 &&
       stage.top < h - 24;
@@ -180,7 +186,7 @@
     if (!actCenter) return false;
     var c = actCenter;
     var peakBase = opts.peak != null ? opts.peak : 0.42;
-    links.push({
+    var link = {
       ox1: col1 - c.col,
       oy1: row1 - c.row,
       ox2: col2 - c.col,
@@ -197,7 +203,14 @@
       finale: !!opts.finale,
       weight: opts.weight || 1,
       point: !!opts.point
-    });
+    };
+    if (opts.curve === 'catmull' && opts.prev && opts.next) {
+      link.ox0 = opts.prev.col - c.col;
+      link.oy0 = opts.prev.row - c.row;
+      link.ox3 = opts.next.col - c.col;
+      link.oy3 = opts.next.row - c.row;
+    }
+    links.push(link);
     return true;
   }
 
@@ -211,17 +224,22 @@
       };
     }
 
-    /* Header field — wide rectangular composition */
-    var halfW = Math.max(4, Math.floor((stage.width * 0.5) / gap));
+    /* Header field — wide landscape composition (shrink height, never invent width) */
+    var halfW = Math.max(5, Math.floor((stage.width * 0.5) / gap));
     var halfH = Math.max(2, Math.floor((stage.height * 0.5) / gap));
-    /* Keep span wider than tall */
-    if (halfW < halfH * 1.6) halfW = Math.max(halfW, Math.ceil(halfH * 1.6));
+    var cellAspect = 2.2;
+    if (halfW / Math.max(1, halfH) < cellAspect) {
+      halfH = Math.max(2, Math.floor(halfW / cellAspect));
+    }
     var width = halfW * 2;
     var height = halfH * 2;
-    var spanW = Math.max(8, width);
-    var spanH = Math.max(4, height);
+    var spanW = Math.max(10, width);
+    var spanH = Math.max(3, Math.min(height, Math.floor(spanW / cellAspect)));
+    halfH = Math.max(2, Math.floor(spanH / 2));
+    height = halfH * 2;
+    spanH = height;
     var radiusX = Math.max(4, Math.floor(spanW / 2));
-    var radiusY = Math.max(3, Math.floor(spanH / 2));
+    var radiusY = Math.max(2, Math.floor(spanH / 2));
     var radius = Math.min(radiusX, radiusY);
 
     return {
@@ -285,6 +303,31 @@
     return { col: col, row: row, metrics: s };
   }
 
+  /* Centered landscape series — fills spanW and sits on stage mid */
+  function seriesLayout(drift, minPts, maxPts, density) {
+    var s = actCenter ? actCenter.metrics : stageCells(drift);
+    var hub = actCenter || { col: s.cx, row: s.cy };
+    var baseRow = hub.row + Math.floor(s.spanH / 2);
+    if (!inBounds(hub.col, baseRow, drift)) {
+      baseRow = s.maxRow - 1;
+    }
+    if (!inBounds(hub.col, baseRow, drift)) return null;
+
+    var pts = Math.max(minPts, Math.min(maxPts, Math.round(s.spanW / (density || 1.2))));
+    var step = Math.max(1, Math.floor(s.spanW / Math.max(1, pts - 1)));
+    var spanUsed = (pts - 1) * step;
+    var startCol = hub.col - Math.floor(spanUsed / 2);
+    return {
+      startCol: startCol,
+      baseRow: baseRow,
+      pts: pts,
+      step: step,
+      spanUsed: spanUsed,
+      metrics: s,
+      hub: hub
+    };
+  }
+
   function sortClockwise(hub, nodes) {
     return nodes.slice().sort(function (a, b) {
       return Math.atan2(a.row - hub.row, a.col - hub.col) -
@@ -310,6 +353,14 @@
     opts = opts || {};
     opts.curve = 'arc';
     opts.arcLift = lift != null ? lift : pick([-18, -26, -34, 18, 26, 34]);
+    return opts;
+  }
+
+  function withCatmull(opts, prev, next) {
+    opts = opts || {};
+    opts.curve = 'catmull';
+    opts.prev = prev;
+    opts.next = next;
     return opts;
   }
 
@@ -513,7 +564,7 @@
     var leftN = Math.max(3, Math.min(5, Math.round(s.spanH / 2.2)));
     var midN = Math.max(3, Math.min(5, leftN + randInt(0, 1)));
     var rightN = Math.max(3, Math.min(5, leftN + randInt(-1, 1)));
-    var useFour = s.spanW >= 10 && Math.random() < 0.55;
+    var useFour = false;
     var colL = s.cx - Math.floor(s.spanW / 2);
     var colR = s.cx + Math.floor(s.spanW / 2);
     var colM = s.cx;
@@ -549,10 +600,10 @@
     function flowBetween(from, to, chance) {
       var used = {};
       for (var i = 0; i < from.length; i++) {
-        var targets = randInt(2, Math.min(4, to.length));
+        var targets = 1;
         for (var t = 0; t < targets; t++) {
           if (Math.random() > chance) continue;
-          var dest = pick(to);
+          var dest = to[Math.min(to.length - 1, Math.max(0, i + randInt(-1, 1)))];
           var id = from[i].row + '>' + dest.col + ':' + dest.row;
           if (used[id]) continue;
           used[id] = true;
@@ -566,7 +617,7 @@
             arcLift: lift,
             drawEnd: 0.3
           });
-          delay += 40;
+          delay += 48;
           made++;
         }
       }
@@ -843,100 +894,197 @@
   }
 
   function spawnLineChart(now, drift) {
-    var originN = originForChart(drift);
-    if (!originN) return false;
-    var s = originN.metrics;
-    var pts = Math.max(8, Math.min(14, Math.round(s.spanW / 1.5)));
-    var step = Math.max(1, Math.floor(s.spanW / (pts - 1)));
+    var layout = seriesLayout(drift, 8, 16, 1.15);
+    if (!layout) return false;
+    var s = layout.metrics;
     var delay = 0;
     var points = [];
-    var y = originN.row - Math.floor(s.spanH * 0.4);
-    for (var i = 0; i < pts; i++) {
-      y = Math.max(originN.row - s.spanH, Math.min(originN.row - 1, y + pick([-3, -2, -1, 1, 2, 3])));
-      var c = originN.col + i * step;
+    var y = layout.baseRow - Math.floor(s.spanH * 0.4);
+    for (var i = 0; i < layout.pts; i++) {
+      y = Math.max(layout.baseRow - s.spanH, Math.min(layout.baseRow - 1, y + pick([-3, -2, -1, 1, 2, 3])));
+      var c = layout.startCol + i * layout.step;
       if (!inBounds(c, y, drift)) break;
       points.push({ col: c, row: y });
     }
     if (points.length < 4) return false;
 
-    addLink(originN.col, originN.row, points[points.length - 1].col, originN.row, now, delay, { peak: 0.2 });
+    addLink(points[0].col, layout.baseRow, points[points.length - 1].col, layout.baseRow, now, delay, { peak: 0.2 });
     delay += 35;
 
     for (var p = 0; p < points.length - 1; p++) {
+      var prev = points[Math.max(0, p - 1)];
+      var next = points[Math.min(points.length - 1, p + 2)];
       addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-        withArc({ peak: 0.5 }, pick([-14, -20, 14, 20])));
+        withCatmull({ peak: 0.5 }, prev, next));
       delay += 36;
     }
     return true;
   }
 
+  function spawnStepChart(now, drift) {
+    var layout = seriesLayout(drift, 7, 14, 1.3);
+    if (!layout) return false;
+    var s = layout.metrics;
+    var delay = 0;
+    var points = [];
+    var y = layout.baseRow - Math.floor(s.spanH * 0.4);
+    for (var i = 0; i < layout.pts; i++) {
+      y = Math.max(layout.baseRow - s.spanH, Math.min(layout.baseRow - 1, y + pick([-3, -2, -1, 1, 2, 3])));
+      var c = layout.startCol + i * layout.step;
+      if (!inBounds(c, y, drift)) break;
+      points.push({ col: c, row: y });
+    }
+    if (points.length < 4) return false;
+
+    addLink(points[0].col, layout.baseRow, points[points.length - 1].col, layout.baseRow, now, delay, { peak: 0.2 });
+    delay += 30;
+
+    /* Classic step: hold level, then jump — horizontal then vertical */
+    for (var p = 0; p < points.length - 1; p++) {
+      var a = points[p];
+      var b = points[p + 1];
+      if (a.row !== b.row && inBounds(b.col, a.row, drift)) {
+        addLink(a.col, a.row, b.col, a.row, now, delay, { peak: 0.5 });
+        delay += 28;
+        addLink(b.col, a.row, b.col, b.row, now, delay, { peak: 0.48 });
+        delay += 24;
+      } else {
+        addLink(a.col, a.row, b.col, b.row, now, delay, { peak: 0.5 });
+        delay += 32;
+      }
+    }
+    return true;
+  }
+
+  function spawnTreemap(now, drift) {
+    var s = stageCells(drift);
+    var left = s.cx - Math.floor(s.spanW / 2);
+    var right = s.cx + Math.floor(s.spanW / 2);
+    var top = s.cy - Math.floor(s.spanH / 2);
+    var bottom = s.cy + Math.floor(s.spanH / 2);
+    if (!inBounds(left, top, drift) || !inBounds(right, bottom, drift)) return false;
+
+    var delay = 0;
+    var made = 0;
+    var before = links.length;
+
+    function edge(c1, r1, c2, r2, peak) {
+      if (!inBounds(c1, r1, drift) || !inBounds(c2, r2, drift)) return;
+      if (addLink(c1, r1, c2, r2, now, delay, { peak: peak })) {
+        delay += 22;
+        made++;
+      }
+    }
+
+    function frame(c0, r0, c1, r1, peak) {
+      edge(c0, r0, c1, r0, peak);
+      edge(c1, r0, c1, r1, peak);
+      edge(c1, r1, c0, r1, peak);
+      edge(c0, r1, c0, r0, peak);
+    }
+
+    /* Outer tile */
+    frame(left, top, right, bottom, 0.48);
+
+    /* Slice-and-dice partitions — weighted cuts for uneven leaf sizes */
+    function partition(c0, r0, c1, r1, depth) {
+      var w = c1 - c0;
+      var h = r1 - r0;
+      if (depth <= 0 || w < 3 || h < 2 || links.length >= maxLinks - 2) return;
+
+      var vertical = w >= h * 1.15;
+      if (vertical && w >= 3) {
+        var ratio = 0.28 + Math.random() * 0.44;
+        var cut = c0 + Math.max(2, Math.min(w - 2, Math.round(w * ratio)));
+        edge(cut, r0, cut, r1, 0.42 - depth * 0.04);
+        partition(c0, r0, cut, r1, depth - 1);
+        partition(cut, r0, c1, r1, depth - 1);
+      } else if (h >= 3) {
+        var ratioH = 0.28 + Math.random() * 0.44;
+        var cutR = r0 + Math.max(2, Math.min(h - 2, Math.round(h * ratioH)));
+        edge(c0, cutR, c1, cutR, 0.42 - depth * 0.04);
+        partition(c0, r0, c1, cutR, depth - 1);
+        partition(c0, cutR, c1, r1, depth - 1);
+      }
+    }
+
+    partition(left, top, right, bottom, 3);
+
+    /* Soft accent dots in a few leaf centers for value weight */
+    var accents = [
+      { c: left + Math.floor((right - left) * 0.22), r: top + Math.floor((bottom - top) * 0.35) },
+      { c: left + Math.floor((right - left) * 0.62), r: top + Math.floor((bottom - top) * 0.28) },
+      { c: left + Math.floor((right - left) * 0.72), r: top + Math.floor((bottom - top) * 0.68) }
+    ];
+    for (var a = 0; a < accents.length; a++) {
+      if (!inBounds(accents[a].c, accents[a].r, drift)) continue;
+      if (addLink(accents[a].c, accents[a].r, accents[a].c, accents[a].r, now, delay, {
+        peak: 0.4, point: true
+      })) {
+        delay += 30;
+        made++;
+      }
+    }
+
+    return links.length > before && made >= 5;
+  }
+
   function spawnMultiLine(now, drift) {
     var s = stageCells(drift);
-    var series = randInt(2, 4);
     var pts = Math.max(8, Math.min(14, Math.round(s.spanW / 1.5)));
     var step = Math.max(1, Math.floor(s.spanW / (pts - 1)));
     var startCol = s.cx - Math.floor(((pts - 1) * step) / 2);
     var delay = 0;
     var made = 0;
-
-    for (var ser = 0; ser < series; ser++) {
-      var y = s.cy + randInt(-Math.floor(s.spanH / 3), Math.floor(s.spanH / 3));
-      var points = [];
-      for (var i = 0; i < pts; i++) {
-        y = Math.max(s.cy - Math.floor(s.spanH / 2), Math.min(s.cy + Math.floor(s.spanH / 2), y + pick([-2, -1, 0, 1, 2])));
-        var c = startCol + i * step;
-        if (!inBounds(c, y, drift)) break;
-        points.push({ col: c, row: y });
-      }
-      if (points.length < 4) continue;
-      for (var p = 0; p < points.length - 1; p++) {
-        addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-          withArc({ peak: 0.42 + ser * 0.04 }, pick([-16, -22, 16, 22])));
-        delay += 24;
-        made++;
-      }
-      delay += 60;
+    var y = s.cy + randInt(-Math.floor(s.spanH / 4), Math.floor(s.spanH / 4));
+    var points = [];
+    for (var i = 0; i < pts; i++) {
+      y = Math.max(s.cy - Math.floor(s.spanH / 2), Math.min(s.cy + Math.floor(s.spanH / 2), y + pick([-2, -1, 0, 1, 2])));
+      var c = startCol + i * step;
+      if (!inBounds(c, y, drift)) break;
+      points.push({ col: c, row: y });
     }
-    return made >= 8;
+    if (points.length < 4) return false;
+    for (var p = 0; p < points.length - 1; p++) {
+      addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
+        withArc({ peak: 0.48 }, pick([-16, -22, 16, 22])));
+      delay += 36;
+      made++;
+    }
+    return made >= 4;
   }
 
   function spawnWaveCurves(now, drift) {
     var s = stageCells(drift);
-    var waves = randInt(2, 4);
     var pts = Math.max(10, Math.min(18, s.spanW));
     var step = Math.max(1, Math.floor(s.spanW / (pts - 1)));
     var startCol = s.cx - Math.floor(((pts - 1) * step) / 2);
     var amp = Math.max(2, Math.floor(s.spanH / 2.4));
     var delay = 0;
     var made = 0;
-
-    for (var wi = 0; wi < waves; wi++) {
-      var phase = Math.random() * Math.PI * 2;
-      var cycles = 1.2 + Math.random() * 1.8;
-      var rowShift = randInt(-1, 1);
-      var points = [];
-      for (var i = 0; i < pts; i++) {
-        var t = i / Math.max(1, pts - 1);
-        var c = startCol + i * step;
-        var row = s.cy + rowShift + Math.round(Math.sin(t * Math.PI * 2 * cycles + phase) * amp * (0.55 + wi * 0.12));
-        if (!inBounds(c, row, drift)) continue;
-        points.push({ col: c, row: row });
-      }
-      if (points.length < 5) continue;
-      for (var p = 0; p < points.length - 1; p++) {
-        addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-          withArc({ peak: 0.46 }, pick([-12, -18, 12, 18])));
-        delay += 20;
-        made++;
-      }
-      delay += 50;
+    var phase = Math.random() * Math.PI * 2;
+    var cycles = 1.2 + Math.random() * 1.4;
+    var points = [];
+    for (var i = 0; i < pts; i++) {
+      var t = i / Math.max(1, pts - 1);
+      var c = startCol + i * step;
+      var row = s.cy + Math.round(Math.sin(t * Math.PI * 2 * cycles + phase) * amp);
+      if (!inBounds(c, row, drift)) continue;
+      points.push({ col: c, row: row });
     }
-    return made >= 10;
+    if (points.length < 5) return false;
+    for (var p = 0; p < points.length - 1; p++) {
+      addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
+        withArc({ peak: 0.48 }, pick([-12, -18, 12, 18])));
+      delay += 28;
+      made++;
+    }
+    return made >= 5;
   }
 
   function spawnParallelCoords(now, drift) {
     var s = stageCells(drift);
-    var axes = Math.max(4, Math.min(7, Math.round(s.spanW / 3)));
+    var axes = Math.max(4, Math.min(6, Math.round(s.spanW / 3)));
     var step = Math.max(2, Math.floor(s.spanW / (axes - 1)));
     var startCol = s.cx - Math.floor(((axes - 1) * step) / 2);
     var top = s.cy - Math.floor(s.spanH / 2);
@@ -949,30 +1097,27 @@
       var c = startCol + a * step;
       if (!inBounds(c, top, drift) || !inBounds(c, bottom, drift)) continue;
       axisCols.push(c);
-      addLink(c, top, c, bottom, now, delay, { peak: 0.18 });
+      addLink(c, top, c, bottom, now, delay, { peak: 0.16 });
       delay += 20;
       made++;
     }
     if (axisCols.length < 3) return false;
 
-    var series = randInt(4, 7);
-    for (var ser = 0; ser < series; ser++) {
-      var points = [];
-      for (var i = 0; i < axisCols.length; i++) {
-        var r = randInt(top + 1, bottom - 1);
-        if (!inBounds(axisCols[i], r, drift)) continue;
-        points.push({ col: axisCols[i], row: r });
-      }
-      if (points.length < 3) continue;
-      for (var p = 0; p < points.length - 1; p++) {
-        addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-          withArc({ peak: 0.4 }, pick([-18, -26, 18, 26])));
-        delay += 28;
-        made++;
-      }
-      delay += 40;
+    /* One polyline across the axes */
+    var points = [];
+    for (var i = 0; i < axisCols.length; i++) {
+      var r = randInt(top + 1, bottom - 1);
+      if (!inBounds(axisCols[i], r, drift)) continue;
+      points.push({ col: axisCols[i], row: r });
     }
-    return made >= 10;
+    if (points.length < 3) return false;
+    for (var p = 0; p < points.length - 1; p++) {
+      addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
+        withArc({ peak: 0.46 }, pick([-18, -26, 18, 26])));
+      delay += 40;
+      made++;
+    }
+    return made >= 5;
   }
 
   function spawnScatter(now, drift) {
@@ -1108,31 +1253,31 @@
   }
 
   function spawnAreaChart(now, drift) {
-    var originN = originForChart(drift);
-    if (!originN) return false;
-    var s = originN.metrics;
-    var pts = Math.max(7, Math.min(12, Math.round(s.spanW / 1.6)));
-    var step = Math.max(1, Math.floor(s.spanW / (pts - 1)));
+    var layout = seriesLayout(drift, 7, 14, 1.25);
+    if (!layout) return false;
+    var s = layout.metrics;
     var delay = 0;
     var points = [];
-    var y = originN.row - Math.floor(s.spanH * 0.45);
-    for (var i = 0; i < pts; i++) {
-      y = Math.max(originN.row - s.spanH, Math.min(originN.row - 1, y + pick([-2, -1, 1, 2])));
-      var c = originN.col + i * step;
+    var y = layout.baseRow - Math.floor(s.spanH * 0.45);
+    for (var i = 0; i < layout.pts; i++) {
+      y = Math.max(layout.baseRow - s.spanH, Math.min(layout.baseRow - 1, y + pick([-2, -1, 1, 2])));
+      var c = layout.startCol + i * layout.step;
       if (!inBounds(c, y, drift)) break;
       points.push({ col: c, row: y });
     }
     if (points.length < 4) return false;
 
-    addLink(points[0].col, originN.row, points[points.length - 1].col, originN.row, now, delay, { peak: 0.2 });
+    addLink(points[0].col, layout.baseRow, points[points.length - 1].col, layout.baseRow, now, delay, { peak: 0.2 });
     delay += 30;
     for (var p = 0; p < points.length - 1; p++) {
+      var prev = points[Math.max(0, p - 1)];
+      var next = points[Math.min(points.length - 1, p + 2)];
       addLink(points[p].col, points[p].row, points[p + 1].col, points[p + 1].row, now, delay,
-        withArc({ peak: 0.48 }, pick([-12, -18, 12, 18])));
+        withCatmull({ peak: 0.48 }, prev, next));
       delay += 32;
     }
     for (var v = 0; v < points.length; v++) {
-      addLink(points[v].col, points[v].row, points[v].col, originN.row, now, delay, { peak: 0.24 });
+      addLink(points[v].col, points[v].row, points[v].col, layout.baseRow, now, delay, { peak: 0.24 });
       delay += 26;
     }
     return true;
@@ -1256,64 +1401,20 @@
       }
     }
 
-    /* Concentric elliptical guilloche — wide rectangle, not a circle */
-    var rings = Math.max(3, Math.min(5, maxRY));
+    /* Concentric elliptical guilloche — one clear motif */
+    var rings = Math.max(3, Math.min(4, maxRY));
     for (var ri = 0; ri < rings; ri++) {
       var t = (ri + 1) / rings;
       var rx = Math.max(3, Math.round(maxRX * t));
       var ry = Math.max(2, Math.round(maxRY * t));
-      var count = Math.max(10, Math.min(24, rx * 3));
+      var count = Math.max(10, Math.min(20, rx * 3));
       var phase = (ri % 2) * (Math.PI / count);
       var pts = ringPoints(rx, ry, count, phase);
-      strokeClosed(pts, 0.34 + ri * 0.04, pick([-10, -14, 10, 14]));
-    }
-
-    /* Interlocking petal arcs — stretched horizontally */
-    var petals = randInt(6, 10);
-    for (var p = 0; p < petals; p++) {
-      var ang = (Math.PI * 2 * p) / petals;
-      var pc = hub.col + Math.round(Math.cos(ang) * Math.max(2, Math.floor(maxRX * 0.32)));
-      var pr = hub.row + Math.round(Math.sin(ang) * Math.max(2, Math.floor(maxRY * 0.32)));
-      if (!inBounds(pc, pr, drift)) continue;
-      var lobe = [];
-      var lobeN = 8;
-      var lobeRX = Math.max(2, Math.floor(maxRX * 0.28));
-      var lobeRY = Math.max(2, Math.floor(maxRY * 0.38));
-      for (var li = 0; li < lobeN; li++) {
-        var la = ang + (Math.PI * 2 * li) / lobeN;
-        var lc = pc + Math.round(Math.cos(la) * lobeRX);
-        var lr = pr + Math.round(Math.sin(la) * lobeRY);
-        if (inBounds(lc, lr, drift)) lobe.push({ col: lc, row: lr });
-      }
-      strokeClosed(lobe, 0.3, pick([-16, -22, 16, 22]));
-    }
-
-    /* Fine wavy engraved bands across the wide field */
-    var bands = randInt(3, 5);
-    var bandPts = Math.max(10, Math.min(18, s.spanW));
-    var step = Math.max(1, Math.floor(s.spanW / (bandPts - 1)));
-    var startCol = s.cx - Math.floor(((bandPts - 1) * step) / 2);
-    var amp = Math.max(1, Math.floor(s.spanH / 5));
-    for (var b = 0; b < bands; b++) {
-      var base = s.cy - Math.floor(s.spanH / 2) + Math.round(((b + 1) / (bands + 1)) * s.spanH);
-      var phase2 = b * 0.7;
-      var wave = [];
-      for (var i = 0; i < bandPts; i++) {
-        var wt = i / Math.max(1, bandPts - 1);
-        var c = startCol + i * step;
-        var row = base + Math.round(Math.sin(wt * Math.PI * 4 + phase2) * amp);
-        if (inBounds(c, row, drift)) wave.push({ col: c, row: row });
-      }
-      for (var wi = 0; wi < wave.length - 1; wi++) {
-        addLink(wave[wi].col, wave[wi].row, wave[wi + 1].col, wave[wi + 1].row, now, delay,
-          withArc({ peak: 0.28 }, pick([-8, 8, -12, 12])));
-        delay += 14;
-        made++;
-      }
+      strokeClosed(pts, 0.36 + ri * 0.04, pick([-10, -14, 10, 14]));
     }
 
     maxLinks = prevMax;
-    return made >= 16;
+    return made >= 10;
   }
 
   function spawnFireworkBurst(now, drift, delayBase, asFinale) {
@@ -1408,16 +1509,16 @@
   function spawnFinaleWave(now, drift) {
     var before = links.length;
     var pickAct = pick([
-      spawnSankey, spawnLineChart, spawnMultiLine, spawnWaveCurves,
-      spawnAreaChart, spawnVarianceChart, spawnParallelCoords, spawnGuilloche, spawnFireworks
+      spawnSankey, spawnHistogram, spawnLineChart, spawnStepChart,
+      spawnTreemap, spawnAreaChart, spawnVarianceChart, spawnScatter
     ]);
     pickAct(now, drift);
     for (var i = before; i < links.length; i++) {
       links[i].finale = true;
-      links[i].peak = Math.min(0.92, links[i].peak * 1.4);
-      links[i].life = Math.max(links[i].life, 8000 + Math.random() * 2800);
-      links[i].weight = Math.max(links[i].weight || 1, 1.25);
-      links[i].fadeStart = Math.min(links[i].fadeStart, 0.7);
+      links[i].peak = Math.min(0.85, links[i].peak * 1.25);
+      links[i].life = Math.max(links[i].life, 7200 + Math.random() * 2000);
+      links[i].weight = Math.max(links[i].weight || 1, 1.1);
+      links[i].fadeStart = Math.min(links[i].fadeStart, 0.72);
     }
     return links.length > before;
   }
@@ -1427,11 +1528,11 @@
     beginAct(drift);
     finaleActive = true;
     postFinale = false;
-    maxLinks = maxLinksFinale;
-    finaleUntil = now + 13000 + Math.random() * 6000;
+    maxLinks = maxLinksNormal;
+    /* One amplified pattern only — no stacked waves */
     spawnFinaleWave(now, drift);
     showActive = true;
-    nextSpawnIn = 500 + Math.random() * 400;
+    nextSpawnIn = 8000 + Math.random() * 2000;
     recentTypes.push('finale');
     if (recentTypes.length > 2) recentTypes.shift();
   }
@@ -1443,43 +1544,29 @@
       return;
     }
 
-    /* Sunburst finale — keep stacking waves while the stage is lit */
-    if (finaleActive) {
-      if (now < finaleUntil) {
-        var fDrift = driftAt(now);
-        if (!actCenter) beginAct(fDrift);
-        spawnFinaleWave(now, fDrift);
-        showActive = true;
-        nextSpawnIn = 650 + Math.random() * 850;
-        return;
-      }
-      if (links.length > 0) {
-        showActive = true;
-        nextSpawnIn = 350;
-        return;
-      }
-      finaleActive = false;
-      maxLinks = maxLinksNormal;
-      postFinale = true;
-      showActive = false;
-      actsSinceFinale = 0;
-      nextSpawnIn = 3200 + Math.random() * 2400;
-      return;
-    }
-
-    /* Blackout until the stage is clear — then one full act */
+    /* Wait for the current pattern to fully clear */
     if (links.length > 0) {
       showActive = true;
       nextSpawnIn = 400;
       return;
     }
+
+    if (finaleActive) {
+      finaleActive = false;
+      maxLinks = maxLinksNormal;
+      postFinale = true;
+      showActive = false;
+      actsSinceFinale = 0;
+      nextSpawnIn = 1800 + Math.random() * 1200;
+      return;
+    }
+
     showActive = false;
 
     actsSinceFinale++;
     var wantFinale =
-      (actsSinceFinale >= 4 && Math.random() < 0.28) ||
-      (actsSinceFinale >= 7 && Math.random() < 0.5) ||
-      actsSinceFinale >= 9;
+      (actsSinceFinale >= 6 && Math.random() < 0.22) ||
+      actsSinceFinale >= 10;
     if (wantFinale) {
       startFinale(now);
       return;
@@ -1487,22 +1574,16 @@
 
     var drift = driftAt(now);
     beginAct(drift);
-    /* Spectacle-weighted lineup */
+    /* Data-visualization lineup — one pattern at a time */
     var catalog = [
-      { name: 'fireworks', fn: spawnFireworks, w: 10 },
-      { name: 'guilloche', fn: spawnGuilloche, w: 10 },
-      { name: 'waves', fn: spawnWaveCurves, w: 8 },
+      { name: 'sankey', fn: spawnSankey, w: 8 },
+      { name: 'hist', fn: spawnHistogram, w: 7 },
       { name: 'line', fn: spawnLineChart, w: 7 },
-      { name: 'multiline', fn: spawnMultiLine, w: 7 },
-      { name: 'sankey', fn: spawnSankey, w: 7 },
+      { name: 'treemap', fn: spawnTreemap, w: 7 },
+      { name: 'step', fn: spawnStepChart, w: 6 },
       { name: 'area', fn: spawnAreaChart, w: 6 },
-      { name: 'parallel', fn: spawnParallelCoords, w: 5 },
-      { name: 'variance', fn: spawnVarianceChart, w: 5 },
-      { name: 'bipartite', fn: spawnBipartite, w: 4 },
-      { name: 'hist', fn: spawnHistogram, w: 3 },
-      { name: 'bar', fn: spawnBarChart, w: 2 },
-      { name: 'streets', fn: spawnStreets, w: 2 },
-      { name: 'scatter', fn: spawnScatter, w: 2 }
+      { name: 'variance', fn: spawnVarianceChart, w: 6 },
+      { name: 'scatter', fn: spawnScatter, w: 5 }
     ];
 
     var pool = [];
@@ -1516,28 +1597,21 @@
     var before = links.length;
     var ok = choice.fn(now, drift);
     if (!ok || links.length === before) {
-      var fallback = catalog[Math.floor(Math.random() * 5)];
+      var fallback = catalog[Math.floor(Math.random() * catalog.length)];
       fallback.fn(now, drift);
       choice = fallback;
     }
 
     /* Amplify this act — brighter peaks, shared choreography timing */
-    if (choice.name !== 'fireworks') {
-      for (var L = before; L < links.length; L++) {
-        links[L].peak = Math.min(0.75, links[L].peak * 1.55);
-        links[L].life = Math.max(links[L].life, 5800);
-        links[L].fadeStart = Math.max(links[L].fadeStart, 0.74);
-        links[L].drawEnd = Math.min(links[L].drawEnd, 0.28);
-      }
+    for (var L = before; L < links.length; L++) {
+      links[L].peak = Math.min(0.75, links[L].peak * 1.55);
+      links[L].life = Math.max(links[L].life, 5800);
+      links[L].fadeStart = Math.max(links[L].fadeStart, 0.74);
+      links[L].drawEnd = Math.min(links[L].drawEnd, 0.28);
     }
 
-    if (choice.name !== 'line' && choice.name !== 'multiline' && choice.name !== 'waves' &&
-        choice.name !== 'area' && choice.name !== 'sankey' && choice.name !== 'variance' &&
-        choice.name !== 'parallel' && choice.name !== 'bipartite' && choice.name !== 'guilloche' &&
-        choice.name !== 'fireworks') {
-      recentTypes.push(choice.name);
-      if (recentTypes.length > 1) recentTypes.shift();
-    }
+    recentTypes.push(choice.name);
+    if (recentTypes.length > 2) recentTypes.shift();
     showActive = true;
     postFinale = false;
 
@@ -1587,18 +1661,46 @@
     ctx.fill();
   }
 
-  function strokeLink(a, b, progress, alpha, curve, arcLift, weight) {
+  function catmullRomPoint(p0, p1, p2, p3, t) {
+    var t2 = t * t;
+    var t3 = t2 * t;
+    return {
+      x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+      y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+    };
+  }
+
+  function strokeLink(a, b, progress, alpha, curve, arcLift, weight, p0, p3) {
     ctx.lineWidth = 1.15 * (weight || 1);
     ctx.lineCap = 'round';
 
+    if (curve === 'catmull' && p0 && p3) {
+      var steps = Math.max(12, Math.floor(36 * progress));
+      ctx.beginPath();
+      var c0 = catmullRomPoint(p0, a, b, p3, 0);
+      ctx.moveTo(c0.x, c0.y);
+      for (var s = 1; s <= steps; s++) {
+        var cpt = catmullRomPoint(p0, a, b, p3, (s / steps) * progress);
+        ctx.lineTo(cpt.x, cpt.y);
+      }
+      var cEnd = catmullRomPoint(p0, a, b, p3, progress);
+      var cGrad = ctx.createLinearGradient(a.x, a.y, cEnd.x, cEnd.y);
+      cGrad.addColorStop(0, 'rgba(255, 236, 190, ' + (alpha * 0.45) + ')');
+      cGrad.addColorStop(0.5, 'rgba(255, 244, 214, ' + alpha + ')');
+      cGrad.addColorStop(1, 'rgba(232, 214, 160, ' + (alpha * 0.75) + ')');
+      ctx.strokeStyle = cGrad;
+      ctx.stroke();
+      return cEnd;
+    }
+
     if (curve === 'arc') {
       var ctrl = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + arcLift };
-      var steps = Math.max(10, Math.floor(32 * progress));
+      var stepsA = Math.max(10, Math.floor(32 * progress));
       ctx.beginPath();
-      var p0 = quadPoint(a, ctrl, b, 0);
-      ctx.moveTo(p0.x, p0.y);
-      for (var s = 1; s <= steps; s++) {
-        var pt = quadPoint(a, ctrl, b, (s / steps) * progress);
+      var pStart = quadPoint(a, ctrl, b, 0);
+      ctx.moveTo(pStart.x, pStart.y);
+      for (var sa = 1; sa <= stepsA; sa++) {
+        var pt = quadPoint(a, ctrl, b, (sa / stepsA) * progress);
         ctx.lineTo(pt.x, pt.y);
       }
       var end = quadPoint(a, ctrl, b, progress);
@@ -1689,7 +1791,13 @@
         continue;
       }
 
-      var end = strokeLink(a, b, progress, alpha, L.curve, L.arcLift, L.weight);
+      var p0 = (L.curve === 'catmull' && L.ox0 != null)
+        ? resolvePoint(L.ox0, L.oy0, 0, 1, center)
+        : null;
+      var p3 = (L.curve === 'catmull' && L.ox3 != null)
+        ? resolvePoint(L.ox3, L.oy3, 0, 1, center)
+        : null;
+      var end = strokeLink(a, b, progress, alpha, L.curve, L.arcLift, L.weight, p0, p3);
       var degA = degree[key(L.ox1, L.oy1)] || 1;
       var degB = degree[key(L.ox2, L.oy2)] || 1;
       var inFocus = progress > 0.05 && visibility > 0.5;
