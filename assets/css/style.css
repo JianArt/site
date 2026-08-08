@@ -345,17 +345,30 @@ img {
 }
 
 .logo-row {
-  display: flex;
-  align-items: center;
-  gap: 56px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--grid-gap);
   padding: 72px 0;
-  flex-wrap: wrap;
 }
 
-.logo-row img {
-  height: 40px;
+.logo-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 2 / 1;
+  background: #141414;
+  border-radius: var(--radius);
+}
+
+.logo-card img {
+  height: 32px;
   width: auto;
-  opacity: 0.9;
+  max-width: 65%;
+  opacity: 0.95;
+}
+
+@media (max-width: 700px) {
+  .logo-row { grid-template-columns: repeat(2, 1fr); }
 }
 
 .about-bio {
