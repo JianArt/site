@@ -52,7 +52,7 @@ html, body {
   overflow-x: clip;
 }
 
-/* Soft vignette — fixed over the page, under the nav */
+/* Soft vignette — fixed over the page, under the nav (gentler over hero band) */
 html::after {
   content: '';
   position: fixed;
@@ -60,10 +60,10 @@ html::after {
   z-index: 40;
   pointer-events: none;
   background: radial-gradient(
-    ellipse 78% 72% at 50% 42%,
-    transparent 38%,
-    rgba(0, 0, 0, 0.22) 72%,
-    rgba(0, 0, 0, 0.5) 100%
+    ellipse 88% 78% at 50% 36%,
+    transparent 52%,
+    rgba(0, 0, 0, 0.14) 78%,
+    rgba(0, 0, 0, 0.42) 100%
   );
 }
 
@@ -174,21 +174,6 @@ body::after {
   mix-blend-mode: screen;
   transform: translate3d(0, var(--parallax-y, 0px), 0);
   will-change: transform;
-  /* Soft vignette so charts bloom in the center and dissolve at the rim */
-  -webkit-mask-image: radial-gradient(
-    ellipse 78% 62% at 50% 38%,
-    #000 12%,
-    rgba(0, 0, 0, 0.92) 42%,
-    rgba(0, 0, 0, 0.45) 68%,
-    transparent 86%
-  );
-  mask-image: radial-gradient(
-    ellipse 78% 62% at 50% 38%,
-    #000 12%,
-    rgba(0, 0, 0, 0.92) 42%,
-    rgba(0, 0, 0, 0.45) 68%,
-    transparent 86%
-  );
 }
 
 @media (prefers-reduced-motion: reduce) {
