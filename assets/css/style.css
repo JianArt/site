@@ -826,24 +826,205 @@ img {
 }
 
 .logo-card {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 2 / 1;
   min-height: 64px;
-  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  isolation: isolate;
+  background: #0c0b0a;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 3px;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .logo-card::before {
-  content: none;
+  content: "";
+  position: absolute;
+  inset: -12%;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse var(--blob-a-size, 70% 80%) at var(--blob-a-pos, 30% 35%), var(--brand-a), transparent 68%),
+    radial-gradient(ellipse var(--blob-b-size, 75% 70%) at var(--blob-b-pos, 78% 72%), var(--brand-b), transparent 65%),
+    linear-gradient(var(--wash-angle, 155deg), rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  background-size: 220% 220%, 240% 240%, 100% 100%;
+  background-position: var(--pos-start, 0% 40%, 100% 60%, 0 0);
+  animation: var(--grad-anim, logo-grad-drift-a) var(--grad-dur, 9s) ease-in-out infinite alternate;
+  animation-delay: var(--grad-delay, 0s);
+}
+
+.logo-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  /* Dense pin-dot grid — sized so it stays visible on retina */
+  background-image: radial-gradient(
+    circle at center,
+    rgba(255, 248, 230, 0.02) 0,
+    rgba(255, 248, 230, 0.02) 0.9px,
+    transparent 1.1px
+  );
+  background-size: 4.5px 4.5px;
+  background-repeat: repeat;
+  opacity: 1;
+}
+
+/* Dim brand washes + unique direction / motion per card */
+.logo-card--oura {
+  --brand-a: rgba(56, 178, 172, 0.2);
+  --brand-b: rgba(28, 110, 118, 0.14);
+  --wash-angle: 128deg;
+  --blob-a-pos: 18% 72%;
+  --blob-b-pos: 82% 22%;
+  --blob-a-size: 85% 65%;
+  --blob-b-size: 60% 90%;
+  --grad-anim: logo-grad-drift-a;
+  --grad-dur: 9s;
+  --grad-delay: -1.2s;
+}
+.logo-card--netflix {
+  --brand-a: rgba(185, 28, 36, 0.22);
+  --brand-b: rgba(110, 12, 18, 0.16);
+  --wash-angle: 212deg;
+  --blob-a-pos: 78% 18%;
+  --blob-b-pos: 22% 88%;
+  --blob-a-size: 65% 90%;
+  --blob-b-size: 90% 55%;
+  --grad-anim: logo-grad-drift-b;
+  --grad-dur: 10.5s;
+  --grad-delay: -4.1s;
+}
+.logo-card--uber {
+  --brand-a: rgba(120, 130, 145, 0.18);
+  --brand-b: rgba(55, 62, 72, 0.14);
+  --wash-angle: 48deg;
+  --blob-a-pos: 42% 12%;
+  --blob-b-pos: 58% 92%;
+  --blob-a-size: 95% 50%;
+  --blob-b-size: 70% 80%;
+  --grad-anim: logo-grad-drift-c;
+  --grad-dur: 8s;
+  --grad-delay: -6.8s;
+}
+.logo-card--amazon {
+  --brand-a: rgba(200, 122, 20, 0.2);
+  --brand-b: rgba(120, 70, 10, 0.14);
+  --wash-angle: 305deg;
+  --blob-a-pos: 88% 58%;
+  --blob-b-pos: 8% 38%;
+  --blob-a-size: 55% 95%;
+  --blob-b-size: 80% 60%;
+  --grad-anim: logo-grad-drift-d;
+  --grad-dur: 11s;
+  --grad-delay: -2.6s;
+}
+.logo-card--dropbox {
+  --brand-a: rgba(20, 90, 210, 0.2);
+  --brand-b: rgba(12, 50, 120, 0.15);
+  --wash-angle: 168deg;
+  --blob-a-pos: 30% 48%;
+  --blob-b-pos: 70% 28%;
+  --blob-a-size: 75% 75%;
+  --blob-b-size: 95% 70%;
+  --grad-anim: logo-grad-drift-e;
+  --grad-dur: 9.5s;
+  --grad-delay: -7.4s;
+}
+
+@keyframes logo-grad-drift-a {
+  0% {
+    background-position: 0% 80%, 100% 15%, 0 0;
+    transform: translate3d(-3%, 2%, 0) scale(1.02) rotate(-1deg);
+  }
+  50% {
+    background-position: 60% 10%, 30% 90%, 0 0;
+    transform: translate3d(2%, -2%, 0) scale(1.08) rotate(1deg);
+  }
+  100% {
+    background-position: 95% 55%, 5% 40%, 0 0;
+    transform: translate3d(-1%, 3%, 0) scale(1.05) rotate(-0.5deg);
+  }
+}
+
+@keyframes logo-grad-drift-b {
+  0% {
+    background-position: 100% 0%, 0% 100%, 0 0;
+    transform: translate3d(3%, -2%, 0) scale(1.04) rotate(1.5deg);
+  }
+  50% {
+    background-position: 20% 70%, 85% 25%, 0 0;
+    transform: translate3d(-3%, 2%, 0) scale(1.1) rotate(-1deg);
+  }
+  100% {
+    background-position: 45% 95%, 55% 5%, 0 0;
+    transform: translate3d(2%, 1%, 0) scale(1.06) rotate(0.8deg);
+  }
+}
+
+@keyframes logo-grad-drift-c {
+  0% {
+    background-position: 40% 0%, 60% 100%, 0 0;
+    transform: translate3d(0%, -3%, 0) scale(1.03) rotate(0deg);
+  }
+  50% {
+    background-position: 90% 40%, 10% 55%, 0 0;
+    transform: translate3d(3%, 1%, 0) scale(1.09) rotate(2deg);
+  }
+  100% {
+    background-position: 10% 85%, 95% 20%, 0 0;
+    transform: translate3d(-2%, 2%, 0) scale(1.05) rotate(-1.5deg);
+  }
+}
+
+@keyframes logo-grad-drift-d {
+  0% {
+    background-position: 85% 40%, 10% 60%, 0 0;
+    transform: translate3d(2%, 2%, 0) scale(1.02) rotate(-2deg);
+  }
+  50% {
+    background-position: 15% 15%, 80% 90%, 0 0;
+    transform: translate3d(-3%, -1%, 0) scale(1.11) rotate(1deg);
+  }
+  100% {
+    background-position: 50% 95%, 40% 5%, 0 0;
+    transform: translate3d(1%, -3%, 0) scale(1.07) rotate(-0.5deg);
+  }
+}
+
+@keyframes logo-grad-drift-e {
+  0% {
+    background-position: 25% 50%, 75% 30%, 0 0;
+    transform: translate3d(-2%, -1%, 0) scale(1.05) rotate(1deg);
+  }
+  50% {
+    background-position: 80% 85%, 15% 10%, 0 0;
+    transform: translate3d(3%, 3%, 0) scale(1.02) rotate(-2deg);
+  }
+  100% {
+    background-position: 5% 20%, 95% 70%, 0 0;
+    transform: translate3d(-1%, 1%, 0) scale(1.09) rotate(0.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-card::before {
+    animation: none;
+    transform: none;
+  }
 }
 
 .logo-card img {
+  position: relative;
+  z-index: 2;
   height: auto;
   width: auto;
   max-height: 22px;
