@@ -1,0 +1,69 @@
+---
+description: Design system for the jianart.com portfolio — type scale, measure, spacing, color tokens, motion, and accessibility invariants
+globs: **/*.css,**/*.html
+alwaysApply: false
+---
+
+# jianart.com Design System
+
+Hand-written static site, no build step. All styling lives in `assets/css/style.css`.
+
+**Never introduce a new font size, color, radius, or breakpoint that is not listed below.** If a change genuinely needs one, say so explicitly in your response and explain why — do not slip it in silently.
+
+## Tokens (use the var, not the literal)
+
+`--bg #0a0908` · `--text #ffffff` · `--text-secondary rgba(255,255,255,.72)` · `--muted #7a7a7a` · `--gold #d1bb77` · `--radius 8px` · `--container-max 1440px` · `--container-pad` (100/56/32/16px) · `--nav-height` (82/72/64px)
+
+## Type scale
+
+Gabarito only. **Weight is 400 everywhere**; 500 only for `.nav-brand span` and `.btn`. Never 600/700.
+
+| Level | Size | Line-height / tracking |
+|---|---|---|
+| Home `h1` | `clamp(34px, 7vw, 83px)` | 1.15 / `-0.03em` (`-0.02em` ≤480px) |
+| About `h1` (gold) | `clamp(32px, 6vw, 56px)` | — |
+| `h1.statement` | `clamp(24px, 4.5vw, 44px)` | 1.3 |
+| `.cta h2` | `clamp(28px, 5.5vw, 48px)`; ≥1100px `clamp(44px, 4vw, 60px)` | 1.15 / `-0.02em` |
+| `.section-heading` | 22px (20px ≤800px) | — |
+| `h3` | 20px (18px ≤700px) | — |
+| Body `p` | 16px (15px/1.6 ≤700px) | 1.5 |
+| `.cta-lede` | 16px | 1.55 |
+| `.btn`, `.nav-links a` | 15px | `.btn` 500 / `0.02em` |
+| `.nav-brand span` | 14px (13px ≤800px) | 500 / `2.4px` (`1.6px` ≤800px) |
+| `.copyright` | 13px (12px ≤480px) | `0.02em` |
+
+Tracking tightens as size grows: `-0.03em` above ~64px, `-0.02em` at 40–60px, `0` for body, `+0.01–0.02em` for small labels and buttons.
+
+## Measure
+
+`.content-col` 868px (structural) · `.hero-lede` 720px · `.cta h2` 720px (1080px ≥1100px) · `.cta-lede` 620px (720px ≥1100px) · `h1.statement` 900px · `.about-bio` 868px
+
+Body copy targets **60–75 characters** ≈ 640–760px at 16px Gabarito. Do not widen a paragraph past 720px.
+
+## Color hierarchy
+
+`--text` headings · `--text-secondary` body · `--muted` de-emphasis (copyright, hero second line) · `--gold` accent only (wordmark, card labels, About `h1`, `.btn` background). At most one gold element competing per viewport.
+
+## Spacing & breakpoints
+
+Section rhythm: 120px above the CTA, 96px between sections, 64px on ≤800px. Vertical steps: 64 / 48 / 40 / 32 / 28 / 24 / 20 / 16 / 10px.
+
+Use the existing breakpoint ladder only — `max-width` 1100 / 900 / 800 / 700 / 480 / 380px, plus `(min-width: 1100px)`, `(hover: none)`, `(prefers-reduced-motion: reduce)`.
+
+## Motion
+
+Reveal-on-scroll via `.reveal` + inline `--reveal-delay` (stagger 60–120ms within a group; `reveal.js` recomputes project-card delays). Easing `cubic-bezier(0.16, 1, 0.3, 1)`; hover and color transitions 0.25–0.4s ease; entrances 0.85–1.55s.
+
+Every new animation or transition needs a matching `@media (prefers-reduced-motion: reduce)` block setting `transition: none; animation: none; transform: none; filter: none; opacity: 1`.
+
+## Accessibility invariants
+
+- Interactive targets ≥48px tall (`.btn` sets `min-height: 48px`).
+- Edge padding uses `max(var(--container-pad), env(safe-area-inset-left/right))` and `calc(Npx + env(safe-area-inset-bottom))`.
+- One `<h1>` per page, then `h2` → `h3` with no skipped levels.
+- Decorative images get `alt=""`; `:focus-visible` gets a gold outline with `3px` offset.
+- Text on `--bg` must clear 4.5:1. `--muted` sits at ~4.6:1 — do not darken it or shrink `.copyright` further.
+
+## HTML
+
+Only `--reveal-delay` and `--ar` belong in inline `style` attributes. Everything else goes in the stylesheet.
