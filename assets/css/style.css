@@ -251,6 +251,7 @@ img {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  min-height: 44px;
 }
 
 .nav-brand img {
@@ -279,7 +280,10 @@ img {
   font-weight: 400;
   color: var(--text-secondary);
   transition: color 0.25s ease;
-  padding: 8px 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 4px;
 }
 
 .nav-links a:hover {
@@ -809,7 +813,7 @@ img {
   color: var(--gold);
 }
 
-.about-hero h1.statement {
+.about-hero .statement {
   margin-top: 20px;
   font-size: clamp(24px, 4.5vw, 44px);
   font-weight: 400;
@@ -1062,7 +1066,7 @@ img {
 }
 
 .about-bio {
-  max-width: 868px;
+  max-width: 580px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1130,6 +1134,21 @@ img {
   font-size: 13px;
   letter-spacing: 0.02em;
   color: var(--muted);
+}
+
+/* Wide screens: let the closing headline scale up and run the width of the
+   container, so the section fills the space without stranding the button. */
+@media (min-width: 1100px) {
+  .cta h2 {
+    /* Lower bound matches the 48px cap below this breakpoint so the
+       headline never shrinks as the viewport grows. */
+    font-size: clamp(48px, 4.2vw, 60px);
+    max-width: min(1080px, 100%);
+  }
+
+  .cta-lede {
+    max-width: 720px;
+  }
 }
 
 @media (max-width: 800px) {
