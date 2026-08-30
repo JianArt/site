@@ -20,13 +20,26 @@ Audits rendered pages against the system in [reference.md](reference.md). Findin
 
 ## 1. Serve this repo and verify the CSS
 
-There is a **second copy of this site** at `~/Documents/Development/JianArt`, usually served on **port 4173**. Reviewing it silently produces conclusions about stale files. Always use the script — it picks a free port in 5180–5220, refuses 4173, and aborts unless the served `style.css` hashes identically to the working tree.
+There is a **second copy of this site** at `~/Documents/Development/JianArt`, usually served on **port 4173**. Reviewing it silently produces conclusions about stale files. The script guards against this: it picks a free port in 5180–5220, refuses 4173, and aborts unless the served `style.css` hashes identically to the working tree.
+
+A server backgrounded inside a script is killed the moment the tool call returns, so **start it as a persistent background job, then verify it** in a second call:
 
 ```bash
-bash .cursor/skills/design-review/scripts/serve.sh
+# 1. Claim a free port
+bash .cursor/skills/design-review/scripts/serve.sh --port
+
+# 2. Start this as a long-running background job (not a normal blocking call)
+python3 -m http.server <PORT> --bind 127.0.0.1
+
+# 3. Prove the served CSS is this working tree
+bash .cursor/skills/design-review/scripts/serve.sh --verify <PORT>
 ```
 
-Record `PORT`, `PID`, and `CSS_BYTES` from the output. Stop the server with `kill <PID>` when finished. If it prints an error, resolve it before continuing — never fall back to a manually started server.
+Step 3 must print `CSS_VERIFIED=yes`. If it errors, resolve it before continuing — never review an unverified server.
+
+Record `PORT` and `CSS_BYTES`. Stop the server when finished by killing the background job you started, and leave any server you did not start alone.
+
+Running `serve.sh` with no arguments starts and verifies in one step, but only keeps the server alive in an interactive shell.
 
 ## 2. Open the page and cache-bust
 

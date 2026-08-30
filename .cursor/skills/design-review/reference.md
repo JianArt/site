@@ -19,7 +19,7 @@ Extracted from `assets/css/style.css`. Use these as the expected values when aud
 |---|---|---|---|---|---|
 | `.hero h1` | `clamp(34px, 7vw, 83px)` | 400 | 1.15 | `-0.03em`, `-0.02em` ≤480 | `--text` |
 | `.about-hero h1:first-child` | `clamp(32px, 6vw, 56px)` | 400 | — | — | `--gold` |
-| `.about-hero h1.statement` | `clamp(24px, 4.5vw, 44px)` | 400 | 1.3 | — | `--text` |
+| `.about-hero .statement` (`h2`) | `clamp(24px, 4.5vw, 44px)` | 400 | 1.3 | — | `--text` |
 | `.cta h2` | `clamp(28px, 5.5vw, 48px)`; ≥1100px `clamp(48px, 4.2vw, 60px)` | 400 | 1.15 | `-0.02em` | `--text` |
 | `.section-heading` | 22px, 20px ≤800 | 400 | — | — | `--text` |
 | `.feature h3`, `.notables-grid h3` | 20px, 18px ≤700 | 400 | — | — | `--text` |
@@ -34,7 +34,7 @@ Extracted from `assets/css/style.css`. Use these as the expected values when aud
 
 ## Measure
 
-`.content-col` 868 · `.about-bio` 868 · `h1.statement` 900 · `.hero-lede` 720 · `.cta h2` 720 (`min(1080px,100%)` ≥1100) · `.cta-lede` 620 (720 ≥1100)
+`.content-col` 868 · `.about-bio` 868 · `.about-hero .statement` 900 · `.hero-lede` 720 · `.cta h2` 720 (`min(1080px,100%)` ≥1100) · `.cta-lede` 620 (720 ≥1100)
 
 Target for body copy: **60–75 characters**. At 16px Gabarito that is roughly 640–760px.
 
@@ -56,10 +56,9 @@ Plus `(min-width: 1100px)` for the CTA, `(hover: none)`, `(prefers-reduced-motio
 1. `--grid-gap` is defined and responsively overridden but never used; grid gaps are hard-coded (28/30/32/40/20/10px).
 2. Radii diverge from `--radius: 8px` — `.btn` 6px, `.logo-card` 3px, `.project-card` 6px ≤480px, and inline `border-radius:10px` on two gallery images.
 3. Hard-coded colors that should be tokens: `#0a0908` (`.btn` text), `#0c0b0a` (`.logo-card`), `#e0cf9a` (`.btn:hover`), plus `rgba(209,187,119,…)` ×4 and `rgba(10,9,8,…)` ×5.
-4. `about/index.html` has two `<h1>` elements.
-5. `.content-col` and `.about-bio` at 868px render body copy at roughly 100–110 characters per line.
-6. Breakpoint ladder has six `max-width` values; 900px and 380px are each used once.
-7. `.nav-links a` renders ~38px tall, below the 44px touch-target floor.
-8. Body copy has three line-heights: 1.5, 1.55 (`.cta-lede`), 1.6 (≤700px).
-9. The `<link rel="stylesheet">` tags have no version query, so browsers cache `style.css` aggressively.
-10. `.cta h2` has two clamps across the 1100px boundary. They currently meet at 48px with no jump — keep the `min-width: 1100px` lower bound equal to the cap below it if either is ever retuned.
+4. `.content-col` and `.about-bio` at 868px render body copy at roughly 100–110 characters per line.
+5. Breakpoint ladder has six `max-width` values; 900px and 380px are each used once.
+6. `.nav-links a` renders ~38px tall and `.nav-brand` ~30px, below the 44px touch-target floor.
+7. Body copy has three line-heights: 1.5, 1.55 (`.cta-lede`), 1.6 (≤700px).
+8. The `<link rel="stylesheet">` tags have no version query, so browsers cache `style.css` aggressively.
+9. `.cta h2` has two clamps across the 1100px boundary. They currently meet at 48px with no jump — keep the `min-width: 1100px` lower bound equal to the cap below it if either is ever retuned.

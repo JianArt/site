@@ -809,7 +809,7 @@ img {
   color: var(--gold);
 }
 
-.about-hero h1.statement {
+.about-hero .statement {
   margin-top: 20px;
   font-size: clamp(24px, 4.5vw, 44px);
   font-weight: 400;

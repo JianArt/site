@@ -22,7 +22,7 @@ Gabarito only. **Weight is 400 everywhere**; 500 only for `.nav-brand span` and 
 |---|---|---|
 | Home `h1` | `clamp(34px, 7vw, 83px)` | 1.15 / `-0.03em` (`-0.02em` ≤480px) |
 | About `h1` (gold) | `clamp(32px, 6vw, 56px)` | — |
-| `h1.statement` | `clamp(24px, 4.5vw, 44px)` | 1.3 |
+| `.about-hero .statement` (`h2`) | `clamp(24px, 4.5vw, 44px)` | 1.3 |
 | `.cta h2` | `clamp(28px, 5.5vw, 48px)`; ≥1100px `clamp(48px, 4.2vw, 60px)` | 1.15 / `-0.02em` |
 | `.section-heading` | 22px (20px ≤800px) | — |
 | `h3` | 20px (18px ≤700px) | — |
@@ -36,7 +36,7 @@ Tracking tightens as size grows: `-0.03em` above ~64px, `-0.02em` at 40–60px, 
 
 ## Measure
 
-`.content-col` 868px (structural) · `.hero-lede` 720px · `.cta h2` 720px (1080px ≥1100px) · `.cta-lede` 620px (720px ≥1100px) · `h1.statement` 900px · `.about-bio` 868px
+`.content-col` 868px (structural) · `.hero-lede` 720px · `.cta h2` 720px (1080px ≥1100px) · `.cta-lede` 620px (720px ≥1100px) · `.about-hero .statement` 900px · `.about-bio` 868px
 
 Body copy targets **60–75 characters** ≈ 640–760px at 16px Gabarito. Do not widen a paragraph past 720px.
 
