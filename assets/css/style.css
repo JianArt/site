@@ -251,6 +251,7 @@ img {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  min-height: 44px;
 }
 
 .nav-brand img {
@@ -279,7 +280,10 @@ img {
   font-weight: 400;
   color: var(--text-secondary);
   transition: color 0.25s ease;
-  padding: 8px 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 4px;
 }
 
 .nav-links a:hover {
@@ -1062,7 +1066,7 @@ img {
 }
 
 .about-bio {
-  max-width: 868px;
+  max-width: 580px;
   display: flex;
   flex-direction: column;
   gap: 24px;

@@ -36,7 +36,7 @@ Tracking tightens as size grows: `-0.03em` above ~64px, `-0.02em` at 40–60px, 
 
 ## Measure
 
-`.content-col` 868px (structural) · `.hero-lede` 720px · `.cta h2` 720px (1080px ≥1100px) · `.cta-lede` 620px (720px ≥1100px) · `.about-hero .statement` 900px · `.about-bio` 868px
+`.content-col` 868px (structural) · `.hero-lede` 720px · `.cta h2` 720px (1080px ≥1100px) · `.cta-lede` 620px (720px ≥1100px) · `.about-bio` 580px · `.about-hero .statement` 900px
 
 Body copy targets **60–75 characters** ≈ 640–760px at 16px Gabarito. Do not widen a paragraph past 720px.
 
