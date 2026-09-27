@@ -12,7 +12,8 @@
  * set: CT scan, lungs, blood flow, neuron, health globe, molecule, heart; a
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
- * its own solid with data-shape on the hero), still
+ * its own solid with data-shape on the hero; the lab previews with
+ * ?shape=, currently an extracted molar), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -109,7 +110,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = [];
+  var LAB_NAMES = ['molar'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -407,6 +408,10 @@
     } else if (kind === 'datacenter') {
       rotY(q, 0.55 + 0.25 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.35);
+    } else if (kind === 'molar') {
+      /* Near-frontal, so the two roots sit side by side and neither falls into shade. */
+      rotY(q, 0.32 + 0.08 * Math.sin(t * 0.00016 + seed));
+      rotX(q, 0.22);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -819,7 +824,8 @@
 
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
-    planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1
+    planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
+    molar: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1096,6 +1102,86 @@
     return [r1 * Math.cos(t1), r1 * Math.sin(t1), r2 * Math.cos(t2)];
   }
 
+  /* Four cusps on the corners of the occlusal table: x, y, z, radius. */
+  var MOLAR_CUSPS = [
+    [-0.20, 0.66, -0.14, 0.17],
+    [0.21, 0.67, -0.13, 0.17],
+    [-0.18, 0.64, 0.14, 0.16],
+    [0.19, 0.65, 0.15, 0.165]
+  ];
+
+  function molarDir(id, salt, yMax) {
+    var dir;
+    var k;
+    for (k = 0; k < 6; k++) {
+      dir = vNorm(gauss3(id ^ (salt + k * 0x9e3779b9)));
+      if (dir[1] <= yMax) return dir;
+    }
+    dir[1] = yMax;
+    return vNorm(dir);
+  }
+
+  /* Rounded-box radius along a unit direction. n > 2 squares the egg into a crown. */
+  function molarOnBox(dir, ax, ay, az) {
+    var n = 3.15;
+    var t = Math.pow(Math.abs(dir[0]) / ax, n) +
+      Math.pow(Math.abs(dir[1]) / ay, n) +
+      Math.pow(Math.abs(dir[2]) / az, n);
+    t = Math.pow(Math.max(1e-6, t), -1 / n);
+    return [dir[0] * t, dir[1] * t, dir[2] * t];
+  }
+
+  function molarCrown(id, b) {
+    var dir = molarDir(id, 0x51ed270b, 0.46);
+    var p = molarOnBox(dir, 0.62, 0.28, 0.48);
+    var shell = 0.92 + 0.08 * b;
+    var y;
+    p[0] *= shell;
+    p[1] *= shell;
+    p[2] *= shell;
+    y = p[1] + 0.40;
+    /* Cream enamel on the cap; gold at the neck, where the roots begin. */
+    return [p[0], y, p[2], y > 0.32 ? 0.9 : 0.58, 0];
+  }
+
+  function molarCusp(id, idx, b) {
+    var csp = MOLAR_CUSPS[idx];
+    var dir = vNorm(gauss3(id ^ (0x6c8e9cf5 + idx * 0x9e3779b9)));
+    var shell;
+    var y;
+    if (dir[1] < 0) dir[1] = -dir[1];
+    /* Keep the fossa empty: flip any sample that faces the middle of the table. */
+    if (dir[0] * csp[0] + dir[2] * csp[2] < 0) {
+      dir[0] = -dir[0];
+      dir[2] = -dir[2];
+    }
+    shell = csp[3] * (0.86 + 0.14 * b);
+    y = csp[1] + dir[1] * shell * 0.78;
+    return [
+      csp[0] + dir[0] * shell,
+      y,
+      csp[2] + dir[2] * shell,
+      0.9,
+      dir[1] > 0.62 ? 0.65 : 0
+    ];
+  }
+
+  function molarRoot(which, v, ang, fill) {
+    var side = which ? 1 : -1;
+    var len = 1.02;
+    var rad = 0.13 * (1 - 0.34 * v);
+    /* A thick shell, so each root stays a column and the fork stays empty. */
+    var rho = rad * (0.8 + 0.2 * fill);
+    var y = 0.24 - len * v;
+    return [
+      side * (0.2 + 0.22 * v) + Math.cos(ang) * rho,
+      y,
+      side * 0.035 * v + Math.sin(ang) * rho * 0.7,
+      0.62,
+      0
+    ];
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1359,6 +1445,14 @@
         };
         p = [out.u0, k < 3 ? DC_GROUND + 0.02 : DC_GROUND + DC_H + 0.09, out.lane];
       }
+    } else if (kind === 'molar') {
+      /* Extracted molar: enamel crown, four cusps, two diverging roots. */
+      if (f < 0.36) o = molarCrown(id, b);
+      else if (f < 0.52) o = molarCusp(id, Math.floor(a * 4) % 4, b);
+      else o = molarRoot(f < 0.76 ? 0 : 1, a, b * 6.2832, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
     } else if (kind === 'molecule') {
       o = pickAcc(MOLECULE.atoms, a * MOLECULE.total);
       p = shell([o.x, o.y, o.z], o.r, dir);
