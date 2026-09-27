@@ -409,9 +409,9 @@
       rotY(q, 0.55 + 0.25 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.35);
     } else if (kind === 'molar') {
-      /* Three-quarter view so the fork of the roots and the cusps both read. */
-      rotY(q, 0.52 + 0.12 * Math.sin(t * 0.00016 + seed));
-      rotX(q, 0.48);
+      /* Near-frontal, so the two roots sit side by side and neither falls into shade. */
+      rotY(q, 0.32 + 0.08 * Math.sin(t * 0.00016 + seed));
+      rotX(q, 0.22);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -1104,10 +1104,10 @@
 
   /* Four cusps on the corners of the occlusal table: x, y, z, radius. */
   var MOLAR_CUSPS = [
-    [-0.17, 0.44, -0.13, 0.18],
-    [0.18, 0.45, -0.12, 0.18],
-    [-0.16, 0.42, 0.13, 0.17],
-    [0.17, 0.43, 0.14, 0.175]
+    [-0.20, 0.66, -0.14, 0.17],
+    [0.21, 0.67, -0.13, 0.17],
+    [-0.18, 0.64, 0.14, 0.16],
+    [0.19, 0.65, 0.15, 0.165]
   ];
 
   function molarDir(id, salt, yMax) {
@@ -1132,16 +1132,16 @@
   }
 
   function molarCrown(id, b) {
-    var dir = molarDir(id, 0x51ed270b, 0.38);
-    var p = molarOnBox(dir, 0.54, 0.38, 0.46);
-    var shell = 0.9 + 0.1 * b;
+    var dir = molarDir(id, 0x51ed270b, 0.46);
+    var p = molarOnBox(dir, 0.62, 0.28, 0.48);
+    var shell = 0.92 + 0.08 * b;
     var y;
     p[0] *= shell;
     p[1] *= shell;
     p[2] *= shell;
-    y = p[1] + 0.12;
-    /* Cream enamel above the gumline; gold where the roots take over. */
-    return [p[0], y, p[2], y > 0.0 ? 0.88 : 0.48, 0];
+    y = p[1] + 0.40;
+    /* Cream enamel on the cap; gold at the neck, where the roots begin. */
+    return [p[0], y, p[2], y > 0.32 ? 0.9 : 0.58, 0];
   }
 
   function molarCusp(id, idx, b) {
@@ -1168,15 +1168,16 @@
 
   function molarRoot(which, v, ang, fill) {
     var side = which ? 1 : -1;
-    var flare = v < 0.2 ? (v / 0.2) * 0.42 : 0.42 + 0.58 * ((v - 0.2) / 0.8);
-    var len = which ? 0.7 : 0.8;
-    var rad = (0.13 * (1 - v) + 0.055) * Math.sqrt(Math.max(1e-4, fill));
-    var y = -0.02 - len * v;
+    var len = 1.02;
+    var rad = 0.13 * (1 - 0.34 * v);
+    /* A thick shell, so each root stays a column and the fork stays empty. */
+    var rho = rad * (0.8 + 0.2 * fill);
+    var y = 0.24 - len * v;
     return [
-      side * (0.05 + 0.28 * flare) + Math.cos(ang) * rad,
+      side * (0.2 + 0.22 * v) + Math.cos(ang) * rho,
       y,
-      side * -0.04 * flare + Math.sin(ang) * rad * 0.76,
-      0.42,
+      side * 0.035 * v + Math.sin(ang) * rho * 0.7,
+      0.62,
       0
     ];
   }
@@ -1446,9 +1447,9 @@
       }
     } else if (kind === 'molar') {
       /* Extracted molar: enamel crown, four cusps, two diverging roots. */
-      if (f < 0.48) o = molarCrown(id, b);
-      else if (f < 0.72) o = molarCusp(id, Math.floor(a * 4) % 4, b);
-      else o = molarRoot(f < 0.86 ? 0 : 1, a, b * 6.2832, c);
+      if (f < 0.36) o = molarCrown(id, b);
+      else if (f < 0.52) o = molarCusp(id, Math.floor(a * 4) % 4, b);
+      else o = molarRoot(f < 0.76 ? 0 : 1, a, b * 6.2832, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
