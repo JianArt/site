@@ -53,10 +53,16 @@ at the edges of a moving stream.
 
 ### Checking a shape
 
-Load `/?shape=name`, wait about 11 seconds (the middle of the first hold), and
+Load `/?shape=name`, wait about 13 seconds (inside the first hold), and
 screenshot the hero. Check it at 1440px and 390px wide. If the browser tab is
 hidden, `requestAnimationFrame` does not fire; override it and pump frames
 manually before reading the canvas.
+
+## Cursor Cloud specific instructions
+
+Start the preview with `python3 -m http.server 5190` from the repo root before
+opening a browser. Keep the page tab in front and wait about 13 seconds after
+load before any screenshot of the hero, or it shows only loose dust.
 
 ## Cache busting
 
