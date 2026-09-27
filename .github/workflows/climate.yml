@@ -1,0 +1,36 @@
+name: Refresh climate
+
+on:
+  schedule:
+    # After the US cash close year-round (21:30 UTC).
+    - cron: '30 21 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch S&P 500 and Bay Area weather
+        run: python3 scripts/fetch-climate.py
+
+      - name: Commit if the field changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/data/climate.json assets/data/weather.json
+          if git diff --staged --quiet; then
+            echo "Climate unchanged"
+            exit 0
+          fi
+          git commit -m "Refresh hero climate"
+          git push

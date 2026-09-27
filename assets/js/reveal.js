@@ -61,11 +61,28 @@
         rootMargin: '0px 0px -12% 0px'
       });
 
+      /* Anything already peeking into the first screen shows on load, so the
+         top of the grid hints that the page scrolls. */
       requestAnimationFrame(function () {
-        els.forEach(function (el) { io.observe(el); });
+        var fold = window.innerHeight;
+        els.forEach(function (el) {
+          if (el.getBoundingClientRect().top < fold - 24) pending.push(el);
+          else io.observe(el);
+        });
+        if (pending.length) flushTimer = window.setTimeout(flush, 16);
       });
     }
   }
+
+  var path = (location.pathname.replace(/\/index\.html$/i, '/').replace(/\/$/, '') || '/');
+  var onAbout = /\/about$/.test(path);
+  document.querySelectorAll('.nav-links a').forEach(function (link) {
+    var dest = '';
+    try { dest = new URL(link.href).pathname.replace(/\/index\.html$/i, '/').replace(/\/$/, '') || '/'; } catch (err) { return; }
+    var isAbout = /\/about$/.test(dest);
+    if (onAbout ? isAbout : !isAbout) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
 
   /* Solidify nav + fade home hero title before it collides with the brand */
   var nav = document.querySelector('.nav');
