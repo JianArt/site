@@ -108,8 +108,11 @@
     'cloudfiles', 'pool', 'truck', 'candles'];
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
+  /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
+  var LAB_NAMES = [];
   function knownShape(name) {
-    return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name]);
+    return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
+      LAB_NAMES.indexOf(name) >= 0);
   }
   /* ?shape=heart loops a single solid, for previewing one. */
   var SHAPE_FORCE = (function () {
