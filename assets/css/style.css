@@ -165,15 +165,22 @@ body::after {
   }
 }
 
-/* Subtle pair connections — assets/js/dot-links.js */
+/* Hero field canvas — data-weather.js (was force-atlas / chart playlist) */
 .dot-links {
   position: fixed;
   inset: 0;
   z-index: -1; /* behind title, copy, and imagery */
   pointer-events: none;
   mix-blend-mode: screen;
-  transform: translate3d(0, var(--parallax-y, 0px), 0);
-  will-change: transform;
+}
+
+/* Quiet the ambient CSS dots so the topographic field is the weather */
+body.has-data-weather::before {
+  display: none;
+}
+
+body.has-data-weather::after {
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -252,6 +259,11 @@ img {
   gap: 10px;
   min-width: 0;
   min-height: 44px;
+  transition: opacity 0.3s ease;
+}
+
+.nav-brand:hover {
+  opacity: 0.78;
 }
 
 .nav-brand img {
@@ -332,10 +344,21 @@ img {
 /* ---------- Hero ---------- */
 
 .hero {
-  /* Dot lightshow band ≈ 40% of the viewport below the nav */
-  padding-top: calc(var(--nav-height) + 40vh);
-  padding-top: calc(var(--nav-height) + 40dvh);
+  padding-top: calc(var(--nav-height) + 48px);
   padding-bottom: clamp(40px, 6vw, 64px);
+}
+
+/* Home: the hero fills the screen; only the top of the first card peeks */
+.hero--cinema {
+  --peek: clamp(88px, 12vh, 140px);
+  --hero-floor: 300px;
+  min-height: max(var(--hero-floor), calc(100vh - var(--peek)));
+  min-height: max(var(--hero-floor), calc(100dvh - var(--peek)));
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-top: calc(var(--nav-height) + 16px);
+  padding-bottom: clamp(32px, 5vw, 72px);
 }
 
 .hero h1 {
@@ -351,10 +374,20 @@ img {
   .hero {
     padding-bottom: 28px;
   }
+
+  .hero--cinema {
+    --hero-floor: 260px;
+    padding-bottom: 24px;
+  }
 }
 
 @media (max-width: 480px) {
   .hero {
+    padding-bottom: 20px;
+  }
+
+  .hero--cinema {
+    --hero-floor: 220px;
     padding-bottom: 20px;
   }
 
@@ -378,6 +411,12 @@ img {
   color: var(--muted);
 }
 
+.hero-line--gold {
+  color: var(--gold);
+  font-size: 0.72em;
+  letter-spacing: -0.025em;
+}
+
 .hero-lede {
   margin-top: 32px;
   max-width: 720px;
@@ -387,6 +426,16 @@ img {
 
 .hero-lede + .hero-lede {
   margin-top: 16px;
+}
+
+/* Case studies: the intro follows the cinema hero and is what peeks */
+.case-intro .hero-lede:first-child {
+  margin-top: 0;
+}
+
+/* About: logos follow the cinema hero and are what peeks */
+.about-body .logo-row {
+  padding-top: 0;
 }
 
 /* ---------- Project grid (home) ---------- */

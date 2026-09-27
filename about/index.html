@@ -56,7 +56,7 @@
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-9888HFYBES"></script>
   <script src="../assets/js/analytics.js"></script>
-  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/style.css?v=perf1">
 </head>
 <body>
   <header class="nav">
@@ -66,13 +66,15 @@
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="../">Designs</a>
-      <a href="../about/">About</a>
+      <a href="../about/" aria-current="page">About</a>
     </nav>
   </header>
   <main>
-    <section class="container hero about-hero">
+    <section class="container hero about-hero hero--cinema" data-shape="helix">
       <h1 class="reveal">I'm Jian Adornado.</h1>
       <h2 class="statement reveal" style="--reveal-delay: 80ms">From data to decisions—empowering clear, actionable insights for everyone.</h2>
+    </section>
+    <section class="container about-body">
       <div class="logo-row">
         <div class="logo-card logo-card--oura reveal" style="--reveal-delay: 0ms"><img src="../assets/img/oura-logo.png" alt="Oura"></div>
         <div class="logo-card logo-card--netflix reveal" style="--reveal-delay: 60ms"><img src="../assets/img/UJ66NkRTc2yTMf78z6yaCf0YXo.png" alt="Netflix"></div>
@@ -93,7 +95,7 @@
     <p class="copyright">© 2026 Jian Adornado, Data Product Design. All rights reserved.</p>
   </footer>
   </main>
-  <script src="../assets/js/dot-links.js" defer></script>
-  <script src="../assets/js/reveal.js" defer></script>
+  <script src="../assets/js/data-weather.js?v=perf1" defer></script>
+  <script src="../assets/js/reveal.js?v=pages1" defer></script>
 </body>
 </html>
