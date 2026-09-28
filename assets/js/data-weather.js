@@ -13,7 +13,7 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- * ?shape=, currently an extracted molar), still
+ * ?shape=, currently an extracted molar and an MRI gantry), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -110,7 +110,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar'];
+  var LAB_NAMES = ['molar', 'mri'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -412,6 +412,10 @@
       /* Near-frontal, so the two roots sit side by side and neither falls into shade. */
       rotY(q, 0.32 + 0.08 * Math.sin(t * 0.00016 + seed));
       rotX(q, 0.22);
+    } else if (kind === 'mri') {
+      /* Bore opens toward the viewer; pitch keeps the couch top visible. */
+      rotY(q, -1.02 + 0.06 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.46);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -825,7 +829,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    molar: 1
+    molar: 1, mri: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1182,6 +1186,70 @@
     ];
   }
 
+  /* Gantry axis is +x. The couch runs out through the bore toward +x. */
+  var MRI_CY = 0.06;
+  var MRI_BORE = 0.40;
+  var MRI_OUTER = 0.76;
+  var MRI_FRONT = 0.26;
+  var MRI_BACK = -0.40;
+  var MRI_COUCH_X0 = 0.02;
+  var MRI_COUCH_X1 = 1.06;
+  var MRI_COUCH_Z = 0.22;
+  var MRI_COUCH_Y = 0.0;
+
+  function mriFace(x, b, c, front) {
+    var ang = b * 6.2832;
+    var rad = Math.sqrt(MRI_BORE * MRI_BORE + c * (MRI_OUTER * MRI_OUTER - MRI_BORE * MRI_BORE));
+    var inset = 0;
+    var lip = front && rad < 0.50;
+    if (front && rad < 0.52) inset = (0.52 - rad) * 0.55;
+    else if (front && rad > 0.66) inset = (rad - 0.66) * 0.28;
+    return [
+      x - inset,
+      MRI_CY + Math.cos(ang) * rad,
+      Math.sin(ang) * rad,
+      lip ? 0.9 : (front ? 0.56 : 0.38),
+      0
+    ];
+  }
+
+  function mriWall(outer, b, c) {
+    var ang = b * 6.2832;
+    var up = Math.cos(ang);
+    return [
+      MRI_BACK + c * (MRI_FRONT - MRI_BACK),
+      MRI_CY + up * (outer ? MRI_OUTER : MRI_BORE),
+      Math.sin(ang) * (outer ? MRI_OUTER : MRI_BORE),
+      outer ? 0.46 : (up > 0.25 ? 0.84 : 0.48),
+      0
+    ];
+  }
+
+  function mriCouch(a, b, c) {
+    var x = MRI_COUCH_X0 + a * (MRI_COUCH_X1 - MRI_COUCH_X0);
+    var z = (b - 0.5) * 2 * MRI_COUCH_Z;
+    var y = MRI_COUCH_Y;
+    var bot = MRI_COUCH_Y - 0.16;
+    var e = 0.68;
+    if (c < 0.58) {
+      /* Top of the couch, the broad face. */
+    } else if (c < 0.78) {
+      z = b < 0.5 ? -MRI_COUCH_Z : MRI_COUCH_Z;
+      y = bot + ((c - 0.58) / 0.2) * (MRI_COUCH_Y - bot);
+      e = 0.5;
+    } else if (c < 0.92) {
+      /* Near end, the face that points out of the bore. */
+      x = MRI_COUCH_X1;
+      z = (a - 0.5) * 2 * MRI_COUCH_Z;
+      y = bot + b * (MRI_COUCH_Y - bot);
+      e = 0.78;
+    } else {
+      y = bot;
+      e = 0.4;
+    }
+    return [x, y, z, e, 0];
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1450,6 +1518,16 @@
       if (f < 0.36) o = molarCrown(id, b);
       else if (f < 0.52) o = molarCusp(id, Math.floor(a * 4) % 4, b);
       else o = molarRoot(f < 0.76 ? 0 : 1, a, b * 6.2832, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'mri') {
+      /* Scanner: thick gantry, open bore, and the couch running out of it. */
+      if (f < 0.28) o = mriFace(MRI_FRONT, b, c, true);
+      else if (f < 0.36) o = mriFace(MRI_BACK, b, c, false);
+      else if (f < 0.48) o = mriWall(true, b, c);
+      else if (f < 0.58) o = mriWall(false, b, c);
+      else o = mriCouch(a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
