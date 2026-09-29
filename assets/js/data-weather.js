@@ -13,7 +13,7 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- * ?shape=, currently an extracted molar and an MRI gantry), still
+ * ?shape=, currently an extracted molar, an MRI gantry, and a flask), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -110,7 +110,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri'];
+  var LAB_NAMES = ['molar', 'mri', 'flask'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -416,6 +416,10 @@
       /* Bore opens toward the viewer; pitch keeps the couch top visible. */
       rotY(q, -1.02 + 0.06 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.46);
+    } else if (kind === 'flask') {
+      /* High enough to see into the mouth, low enough to keep the cone. */
+      rotY(q, 0.62 + 0.08 * Math.sin(t * 0.00015 + seed));
+      rotX(q, 0.62);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -829,7 +833,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    molar: 1, mri: 1
+    molar: 1, mri: 1, flask: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1250,6 +1254,70 @@
     return [x, y, z, e, 0];
   }
 
+  /* Erlenmeyer: flat foot, straight taper, shoulder, neck, flared lip.
+     Half full of reagent. View matches orient()'s mean rotY(0.62), rotX(0.62). */
+  var FLASK_BASE = -0.62;
+  var FLASK_HEEL = -0.50;
+  var FLASK_SH = -0.02;
+  var FLASK_NECK0 = 0.14;
+  var FLASK_NECK1 = 0.56;
+  var FLASK_VIEW = [-0.473, 0.581, 0.662];
+
+  function flaskR(y) {
+    var t;
+    var sm;
+    if (y <= FLASK_HEEL) return 0.76;
+    if (y < FLASK_SH) {
+      t = (y - FLASK_HEEL) / (FLASK_SH - FLASK_HEEL);
+      return 0.76 + (0.34 - 0.76) * t;
+    }
+    if (y < FLASK_NECK0) {
+      t = (y - FLASK_SH) / (FLASK_NECK0 - FLASK_SH);
+      sm = t * t * (3 - 2 * t);
+      return 0.34 + (0.22 - 0.34) * sm;
+    }
+    return 0.22;
+  }
+
+  /* Left and right limbs only, so the neck bore stays open. */
+  function flaskLimb(b) {
+    var limb = Math.atan2(-FLASK_VIEW[0], FLASK_VIEW[2]);
+    var side = b < 0.5 ? 0 : Math.PI;
+    var u = (b < 0.5 ? b * 2 : (b - 0.5) * 2) - 0.5;
+    return limb + side + u * 0.85;
+  }
+
+  function flaskPoint(f, a, b, c) {
+    var y;
+    var ang;
+    var r;
+    var e;
+    if (f < 0.18) {
+      /* Glass edge of the cone. Limbs only: a front wall would cover the reagent. */
+      y = FLASK_BASE + a * (FLASK_NECK0 - FLASK_BASE);
+      ang = flaskLimb(b);
+      r = flaskR(y) * (0.9 + 0.1 * c);
+      e = 0.52;
+    } else if (f < 0.32) {
+      y = FLASK_NECK0 + a * (FLASK_NECK1 - FLASK_NECK0);
+      ang = flaskLimb(b);
+      r = 0.14 + c * 0.1;
+      e = 0.5;
+    } else if (f < 0.46) {
+      y = FLASK_NECK1 + a * 0.08;
+      ang = b * 6.2832;
+      r = 0.22 + Math.sqrt(c) * 0.26;
+      e = 0.66;
+    } else {
+      /* Reagent fills the cone up to the shoulder. */
+      y = FLASK_BASE + 0.04 + a * (FLASK_SH + 0.04 - FLASK_BASE);
+      ang = b * 6.2832;
+      r = Math.sqrt(c) * flaskR(Math.min(y, FLASK_SH)) * 0.9;
+      e = 0.88;
+    }
+    return [Math.cos(ang) * r, y, Math.sin(ang) * r, e, 0];
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1531,6 +1599,11 @@
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
+    } else if (kind === 'flask') {
+      /* Conical flask, half full. The neck is only its side walls, so the mouth stays open. */
+      o = flaskPoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
     } else if (kind === 'molecule') {
       o = pickAcc(MOLECULE.atoms, a * MOLECULE.total);
       p = shell([o.x, o.y, o.z], o.r, dir);
