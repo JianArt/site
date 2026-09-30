@@ -1185,6 +1185,15 @@ img {
   color: var(--muted);
 }
 
+.copyright a {
+  color: var(--gold);
+  transition: color 0.25s ease;
+}
+
+.copyright a:hover {
+  color: #e0cf9a;
+}
+
 /* Wide screens: let the closing headline scale up and run the width of the
    container, so the section fills the space without stranding the button. */
 @media (min-width: 1100px) {

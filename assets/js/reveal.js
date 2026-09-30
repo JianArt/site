@@ -78,7 +78,12 @@
   var onAbout = /\/about$/.test(path);
   document.querySelectorAll('.nav-links a').forEach(function (link) {
     var dest = '';
-    try { dest = new URL(link.href).pathname.replace(/\/index\.html$/i, '/').replace(/\/$/, '') || '/'; } catch (err) { return; }
+    var url;
+    try { url = new URL(link.href); dest = url.pathname.replace(/\/index\.html$/i, '/').replace(/\/$/, '') || '/'; } catch (err) { return; }
+    if (url.host !== location.host) {
+      link.removeAttribute('aria-current');
+      return;
+    }
     var isAbout = /\/about$/.test(dest);
     if (onAbout ? isAbout : !isAbout) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
