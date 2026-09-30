@@ -12,7 +12,8 @@
  * set: CT scan, lungs, blood flow, neuron, health globe, molecule, heart; a
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
- * its own solid with data-shape on the hero), still
+ * its own solid with data-shape on the hero; the lab previews with
+ * ?shape=, currently an extracted molar, an MRI gantry, and a flask), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -109,7 +110,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = [];
+  var LAB_NAMES = ['molar', 'mri', 'flask'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -407,6 +408,18 @@
     } else if (kind === 'datacenter') {
       rotY(q, 0.55 + 0.25 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.35);
+    } else if (kind === 'molar') {
+      /* Near-frontal, so the two roots sit side by side and neither falls into shade. */
+      rotY(q, 0.32 + 0.08 * Math.sin(t * 0.00016 + seed));
+      rotX(q, 0.22);
+    } else if (kind === 'mri') {
+      /* Bore opens toward the viewer; pitch keeps the couch top visible. */
+      rotY(q, -1.02 + 0.06 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.46);
+    } else if (kind === 'flask') {
+      /* High enough to see into the mouth, low enough to keep the cone. */
+      rotY(q, 0.62 + 0.08 * Math.sin(t * 0.00015 + seed));
+      rotX(q, 0.62);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -819,7 +832,8 @@
 
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
-    planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1
+    planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
+    molar: 1, mri: 1, flask: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1096,6 +1110,214 @@
     return [r1 * Math.cos(t1), r1 * Math.sin(t1), r2 * Math.cos(t2)];
   }
 
+  /* Four cusps on the corners of the occlusal table: x, y, z, radius. */
+  var MOLAR_CUSPS = [
+    [-0.20, 0.66, -0.14, 0.17],
+    [0.21, 0.67, -0.13, 0.17],
+    [-0.18, 0.64, 0.14, 0.16],
+    [0.19, 0.65, 0.15, 0.165]
+  ];
+
+  function molarDir(id, salt, yMax) {
+    var dir;
+    var k;
+    for (k = 0; k < 6; k++) {
+      dir = vNorm(gauss3(id ^ (salt + k * 0x9e3779b9)));
+      if (dir[1] <= yMax) return dir;
+    }
+    dir[1] = yMax;
+    return vNorm(dir);
+  }
+
+  /* Rounded-box radius along a unit direction. n > 2 squares the egg into a crown. */
+  function molarOnBox(dir, ax, ay, az) {
+    var n = 3.15;
+    var t = Math.pow(Math.abs(dir[0]) / ax, n) +
+      Math.pow(Math.abs(dir[1]) / ay, n) +
+      Math.pow(Math.abs(dir[2]) / az, n);
+    t = Math.pow(Math.max(1e-6, t), -1 / n);
+    return [dir[0] * t, dir[1] * t, dir[2] * t];
+  }
+
+  function molarCrown(id, b) {
+    var dir = molarDir(id, 0x51ed270b, 0.46);
+    var p = molarOnBox(dir, 0.62, 0.28, 0.48);
+    var shell = 0.92 + 0.08 * b;
+    var y;
+    p[0] *= shell;
+    p[1] *= shell;
+    p[2] *= shell;
+    y = p[1] + 0.40;
+    /* Cream enamel on the cap; gold at the neck, where the roots begin. */
+    return [p[0], y, p[2], y > 0.32 ? 0.9 : 0.58, 0];
+  }
+
+  function molarCusp(id, idx, b) {
+    var csp = MOLAR_CUSPS[idx];
+    var dir = vNorm(gauss3(id ^ (0x6c8e9cf5 + idx * 0x9e3779b9)));
+    var shell;
+    var y;
+    if (dir[1] < 0) dir[1] = -dir[1];
+    /* Keep the fossa empty: flip any sample that faces the middle of the table. */
+    if (dir[0] * csp[0] + dir[2] * csp[2] < 0) {
+      dir[0] = -dir[0];
+      dir[2] = -dir[2];
+    }
+    shell = csp[3] * (0.86 + 0.14 * b);
+    y = csp[1] + dir[1] * shell * 0.78;
+    return [
+      csp[0] + dir[0] * shell,
+      y,
+      csp[2] + dir[2] * shell,
+      0.9,
+      dir[1] > 0.62 ? 0.65 : 0
+    ];
+  }
+
+  function molarRoot(which, v, ang, fill) {
+    var side = which ? 1 : -1;
+    var len = 1.02;
+    var rad = 0.13 * (1 - 0.34 * v);
+    /* A thick shell, so each root stays a column and the fork stays empty. */
+    var rho = rad * (0.8 + 0.2 * fill);
+    var y = 0.24 - len * v;
+    return [
+      side * (0.2 + 0.22 * v) + Math.cos(ang) * rho,
+      y,
+      side * 0.035 * v + Math.sin(ang) * rho * 0.7,
+      0.62,
+      0
+    ];
+  }
+
+  /* Gantry axis is +x. The couch runs out through the bore toward +x. */
+  var MRI_CY = 0.06;
+  var MRI_BORE = 0.40;
+  var MRI_OUTER = 0.76;
+  var MRI_FRONT = 0.26;
+  var MRI_BACK = -0.40;
+  var MRI_COUCH_X0 = 0.02;
+  var MRI_COUCH_X1 = 1.06;
+  var MRI_COUCH_Z = 0.22;
+  var MRI_COUCH_Y = 0.0;
+
+  function mriFace(x, b, c, front) {
+    var ang = b * 6.2832;
+    var rad = Math.sqrt(MRI_BORE * MRI_BORE + c * (MRI_OUTER * MRI_OUTER - MRI_BORE * MRI_BORE));
+    var inset = 0;
+    var lip = front && rad < 0.50;
+    if (front && rad < 0.52) inset = (0.52 - rad) * 0.55;
+    else if (front && rad > 0.66) inset = (rad - 0.66) * 0.28;
+    return [
+      x - inset,
+      MRI_CY + Math.cos(ang) * rad,
+      Math.sin(ang) * rad,
+      lip ? 0.9 : (front ? 0.56 : 0.38),
+      0
+    ];
+  }
+
+  function mriWall(outer, b, c) {
+    var ang = b * 6.2832;
+    var up = Math.cos(ang);
+    return [
+      MRI_BACK + c * (MRI_FRONT - MRI_BACK),
+      MRI_CY + up * (outer ? MRI_OUTER : MRI_BORE),
+      Math.sin(ang) * (outer ? MRI_OUTER : MRI_BORE),
+      outer ? 0.46 : (up > 0.25 ? 0.84 : 0.48),
+      0
+    ];
+  }
+
+  function mriCouch(a, b, c) {
+    var x = MRI_COUCH_X0 + a * (MRI_COUCH_X1 - MRI_COUCH_X0);
+    var z = (b - 0.5) * 2 * MRI_COUCH_Z;
+    var y = MRI_COUCH_Y;
+    var bot = MRI_COUCH_Y - 0.16;
+    var e = 0.68;
+    if (c < 0.58) {
+      /* Top of the couch, the broad face. */
+    } else if (c < 0.78) {
+      z = b < 0.5 ? -MRI_COUCH_Z : MRI_COUCH_Z;
+      y = bot + ((c - 0.58) / 0.2) * (MRI_COUCH_Y - bot);
+      e = 0.5;
+    } else if (c < 0.92) {
+      /* Near end, the face that points out of the bore. */
+      x = MRI_COUCH_X1;
+      z = (a - 0.5) * 2 * MRI_COUCH_Z;
+      y = bot + b * (MRI_COUCH_Y - bot);
+      e = 0.78;
+    } else {
+      y = bot;
+      e = 0.4;
+    }
+    return [x, y, z, e, 0];
+  }
+
+  /* Erlenmeyer: flat foot, straight taper, shoulder, neck, flared lip.
+     Half full of reagent. View matches orient()'s mean rotY(0.62), rotX(0.62). */
+  var FLASK_BASE = -0.62;
+  var FLASK_HEEL = -0.50;
+  var FLASK_SH = -0.02;
+  var FLASK_NECK0 = 0.14;
+  var FLASK_NECK1 = 0.56;
+  var FLASK_VIEW = [-0.473, 0.581, 0.662];
+
+  function flaskR(y) {
+    var t;
+    var sm;
+    if (y <= FLASK_HEEL) return 0.76;
+    if (y < FLASK_SH) {
+      t = (y - FLASK_HEEL) / (FLASK_SH - FLASK_HEEL);
+      return 0.76 + (0.34 - 0.76) * t;
+    }
+    if (y < FLASK_NECK0) {
+      t = (y - FLASK_SH) / (FLASK_NECK0 - FLASK_SH);
+      sm = t * t * (3 - 2 * t);
+      return 0.34 + (0.22 - 0.34) * sm;
+    }
+    return 0.22;
+  }
+
+  /* Left and right limbs only, so the neck bore stays open. */
+  function flaskLimb(b) {
+    var limb = Math.atan2(-FLASK_VIEW[0], FLASK_VIEW[2]);
+    var side = b < 0.5 ? 0 : Math.PI;
+    var u = (b < 0.5 ? b * 2 : (b - 0.5) * 2) - 0.5;
+    return limb + side + u * 0.85;
+  }
+
+  function flaskPoint(f, a, b, c) {
+    var y;
+    var ang;
+    var r;
+    var e;
+    if (f < 0.18) {
+      /* Glass edge of the cone. Limbs only: a front wall would cover the reagent. */
+      y = FLASK_BASE + a * (FLASK_NECK0 - FLASK_BASE);
+      ang = flaskLimb(b);
+      r = flaskR(y) * (0.9 + 0.1 * c);
+      e = 0.52;
+    } else if (f < 0.32) {
+      y = FLASK_NECK0 + a * (FLASK_NECK1 - FLASK_NECK0);
+      ang = flaskLimb(b);
+      r = 0.14 + c * 0.1;
+      e = 0.5;
+    } else if (f < 0.46) {
+      y = FLASK_NECK1 + a * 0.08;
+      ang = b * 6.2832;
+      r = 0.22 + Math.sqrt(c) * 0.26;
+      e = 0.66;
+    } else {
+      /* Reagent fills the cone up to the shoulder. */
+      y = FLASK_BASE + 0.04 + a * (FLASK_SH + 0.04 - FLASK_BASE);
+      ang = b * 6.2832;
+      r = Math.sqrt(c) * flaskR(Math.min(y, FLASK_SH)) * 0.9;
+      e = 0.88;
+    }
+    return [Math.cos(ang) * r, y, Math.sin(ang) * r, e, 0];
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1359,6 +1581,29 @@
         };
         p = [out.u0, k < 3 ? DC_GROUND + 0.02 : DC_GROUND + DC_H + 0.09, out.lane];
       }
+    } else if (kind === 'molar') {
+      /* Extracted molar: enamel crown, four cusps, two diverging roots. */
+      if (f < 0.36) o = molarCrown(id, b);
+      else if (f < 0.52) o = molarCusp(id, Math.floor(a * 4) % 4, b);
+      else o = molarRoot(f < 0.76 ? 0 : 1, a, b * 6.2832, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'mri') {
+      /* Scanner: thick gantry, open bore, and the couch running out of it. */
+      if (f < 0.28) o = mriFace(MRI_FRONT, b, c, true);
+      else if (f < 0.36) o = mriFace(MRI_BACK, b, c, false);
+      else if (f < 0.48) o = mriWall(true, b, c);
+      else if (f < 0.58) o = mriWall(false, b, c);
+      else o = mriCouch(a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'flask') {
+      /* Conical flask, half full. The neck is only its side walls, so the mouth stays open. */
+      o = flaskPoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
     } else if (kind === 'molecule') {
       o = pickAcc(MOLECULE.atoms, a * MOLECULE.total);
       p = shell([o.x, o.y, o.z], o.r, dir);
