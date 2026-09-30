@@ -13,7 +13,8 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- * ?shape=, currently an extracted molar, an MRI gantry, and a flask), still
+ * ?shape=, currently an extracted molar, an MRI gantry, a flask, and a
+ * binocular microscope), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -110,7 +111,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -420,6 +421,10 @@
       /* High enough to see into the mouth, low enough to keep the cone. */
       rotY(q, 0.62 + 0.08 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.62);
+    } else if (kind === 'microscope') {
+      /* Side three-quarter: arm behind the tube, stage cantilever, both eyepieces. */
+      rotY(q, -1.02 + 0.05 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.46);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -833,7 +838,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    molar: 1, mri: 1, flask: 1
+    molar: 1, mri: 1, flask: 1, microscope: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1318,6 +1323,203 @@
     return [Math.cos(ang) * r, y, Math.sin(ang) * r, e, 0];
   }
 
+  /* Compound microscope in profile. Arm pillar at the back, stage cantilevered
+     forward, binocular head on the tube. Mean camera rotY(-1.02), rotX(0.46). */
+  var SCOPE_BX = 0;
+  var SCOPE_BZ = 0;
+  var SCOPE_ARM_Z = -0.58;
+  var SCOPE_OBJS = [
+    [0.00, 0.0, 0.08, 0.12, 0.92],
+    [-0.18, -0.06, 0.055, 0.07, 0.5],
+    [0.18, -0.05, 0.05, 0.06, 0.48]
+  ];
+  var SCOPE_BRIDGE = [[0, 0.46, -0.58], [0, 0.66, -0.28], [0, 0.54, 0]];
+
+  function scopeFrame(dx, dy, dz) {
+    var l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    var d = [dx / l, dy / l, dz / l];
+    var n = vNorm(vCross(d, Math.abs(d[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]));
+    return { d: d, n: n, b: vCross(d, n) };
+  }
+
+  /* Both barrels face the camera and splay across the frame, so the openings read. */
+  var SCOPE_EYE = [scopeFrame(0.58, 0.45, 0.77), scopeFrame(0.94, 0.45, 0.17)];
+  var SCOPE_EYE0 = [[-0.1, 0.64, 0.26], [0.1, 0.64, -0.02]];
+
+  function scopeBase(a, b, c) {
+    var rx = 0.9;
+    var rz = 0.52;
+    var y0 = -0.82;
+    var y1 = -0.64;
+    var ang = b * 6.2832;
+    var rho = Math.sqrt(a);
+    var shell = c < 0.5 || c >= 0.8;
+    var x = Math.cos(ang) * rx * (shell ? rho : 1);
+    var z = Math.sin(ang) * rz * (shell ? rho : 1);
+    var y = c < 0.5 ? y1 : c < 0.8 ? y0 + a * (y1 - y0) : y0;
+    var e = c < 0.5 ? 0.58 : 0.42;
+    var dx;
+    var dz;
+    if (c < 0.5) {
+      dx = x - SCOPE_BX;
+      dz = z - SCOPE_BZ;
+      rho = Math.sqrt(dx * dx + dz * dz);
+      if (rho > 0.06 && rho < 0.15) e = 0.92;
+    }
+    return [x, y, z, e, 0];
+  }
+
+  function scopeArm(a, b) {
+    var ang = b * 6.2832;
+    return [Math.cos(ang) * 0.16, -0.64 + a * 1.12, SCOPE_ARM_Z + Math.sin(ang) * 0.14, 0.5, 0];
+  }
+
+  function scopeBridge(a, b) {
+    var p = tubeAt(SCOPE_BRIDGE, a, 0.12, b * 6.2832);
+    return [p[0], p[1], p[2], 0.52, 0];
+  }
+
+  function scopeStage(a, b, c) {
+    var x0 = -0.55;
+    var x1 = 0.55;
+    var z0 = -0.48;
+    var z1 = 0.62;
+    var y0 = -0.42;
+    var y1 = -0.3;
+    var x;
+    var z;
+    var y;
+    var e = 0.68;
+    var dx;
+    var dz;
+    var r;
+    if (c < 0.62) {
+      x = x0 + a * (x1 - x0);
+      z = z0 + b * (z1 - z0);
+      dx = x - SCOPE_BX;
+      dz = z - SCOPE_BZ;
+      r = Math.sqrt(dx * dx + dz * dz) || 1e-4;
+      if (r < 0.15) {
+        x = SCOPE_BX + dx / r * 0.15;
+        z = SCOPE_BZ + dz / r * 0.15;
+        e = 0.92;
+      }
+      y = y1;
+    } else if (c < 0.8) {
+      x = x0 + a * (x1 - x0);
+      z = z1;
+      y = y0 + b * (y1 - y0);
+      e = 0.52;
+    } else if (c < 0.92) {
+      z = z0 + a * (z1 - z0);
+      x = b < 0.5 ? x0 : x1;
+      y = y0 + (c - 0.8) / 0.12 * (y1 - y0);
+      e = 0.46;
+    } else {
+      r = a * 6.2832;
+      x = SCOPE_BX + Math.cos(r) * 0.15;
+      z = SCOPE_BZ + Math.sin(r) * 0.15;
+      y = y0 + b * (y1 - y0);
+      e = 0.9;
+    }
+    return [x, y, z, e, 0];
+  }
+
+  function scopeKnob(a, b, fine) {
+    var ang = a * 6.2832;
+    var rho = Math.sqrt(b) * (fine ? 0.075 : 0.13);
+    return [
+      0.3,
+      -0.22 + Math.sin(ang) * rho,
+      SCOPE_ARM_Z + (fine ? 0.22 : 0) + Math.cos(ang) * rho,
+      fine ? 0.9 : 0.64,
+      0
+    ];
+  }
+
+  function scopeBody(a, b) {
+    var ang = b * 6.2832;
+    return [
+      SCOPE_BX + Math.cos(ang) * 0.15,
+      0.02 + a * 0.5,
+      SCOPE_BZ + Math.sin(ang) * 0.15,
+      0.48,
+      0
+    ];
+  }
+
+  function scopeNose(a, b, c) {
+    var ang = a * 6.2832;
+    var rho = Math.sqrt(b) * 0.24;
+    return [SCOPE_BX + Math.cos(ang) * rho, -0.02 + c * 0.08, SCOPE_BZ + Math.sin(ang) * rho, 0.62, 0];
+  }
+
+  function scopeObj(a, b, c) {
+    var o = SCOPE_OBJS[Math.floor(a * 3) % 3];
+    var ang = b * 6.2832;
+    var r = o[2] * (1 - 0.18 * c);
+    return [
+      SCOPE_BX + o[0] + Math.cos(ang) * r,
+      -0.02 - c * o[3],
+      SCOPE_BZ + o[1] + Math.sin(ang) * r,
+      c > 0.7 ? o[4] : 0.5,
+      c > 0.84 && o[4] > 0.8 ? 0.35 : 0
+    ];
+  }
+
+  function scopeHead(a, b, c) {
+    var x0 = -0.28;
+    var x1 = 0.28;
+    var y0 = 0.48;
+    var y1 = 0.7;
+    var z0 = -0.04;
+    var z1 = 0.22;
+    if (c < 0.45) return [x0 + a * (x1 - x0), y1, z0 + b * (z1 - z0), 0.6, 0];
+    if (c < 0.75) return [x0 + a * (x1 - x0), y0 + b * (y1 - y0), z1, 0.68, 0];
+    if (c < 0.9) return [c < 0.825 ? x0 : x1, y0 + b * (y1 - y0), z0 + a * (z1 - z0), 0.48, 0];
+    return [x0 + a * (x1 - x0), y0, z0 + b * (z1 - z0), 0.4, 0];
+  }
+
+  function scopeEye(which, a, b) {
+    var fr = SCOPE_EYE[which];
+    var p0 = SCOPE_EYE0[which];
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var t = a;
+    var rad = 0.12;
+    var e = 0.58;
+    var glow = 0;
+    var u;
+    if (a > 0.5) {
+      t = 1;
+      rad = 0.07 + (a - 0.5) / 0.5 * 0.07;
+      e = 0.94;
+      if (a > 0.82) glow = 0.35;
+    }
+    u = 0.28 * t;
+    return [
+      p0[0] + fr.d[0] * u + rad * (co * fr.n[0] + si * fr.b[0]),
+      p0[1] + fr.d[1] * u + rad * (co * fr.n[1] + si * fr.b[1]),
+      p0[2] + fr.d[2] * u + rad * (co * fr.n[2] + si * fr.b[2]),
+      e,
+      glow
+    ];
+  }
+
+  function scopePoint(f, a, b, c) {
+    if (f < 0.16) return scopeBase(a, b, c);
+    if (f < 0.28) return scopeArm(a, b);
+    if (f < 0.35) return scopeBridge(a, b);
+    if (f < 0.51) return scopeStage(a, b, c);
+    if (f < 0.57) return scopeKnob(a, b, c < 0.36);
+    if (f < 0.69) return scopeBody(a, b);
+    if (f < 0.74) return scopeNose(a, b, c);
+    if (f < 0.82) return scopeObj(a, b, c);
+    if (f < 0.88) return scopeHead(a, b, c);
+    return scopeEye(c < 0.5 ? 0 : 1, a, b);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1604,6 +1806,12 @@
       o = flaskPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
+    } else if (kind === 'microscope') {
+      /* Binocular head, objective gap, and the stage aperture. */
+      o = scopePoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
     } else if (kind === 'molecule') {
       o = pickAcc(MOLECULE.atoms, a * MOLECULE.total);
       p = shell([o.x, o.y, o.z], o.r, dir);
