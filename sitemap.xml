@@ -6,57 +6,57 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://jianart.com/about</loc>
+    <loc>https://jianart.com/about/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/amazon-appstore</loc>
+    <loc>https://jianart.com/designs/amazon-appstore/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/dropbox-sync</loc>
+    <loc>https://jianart.com/designs/dropbox-sync/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/exchange-funds</loc>
+    <loc>https://jianart.com/designs/exchange-funds/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/forex-trading-platform</loc>
+    <loc>https://jianart.com/designs/forex-trading-platform/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/motive</loc>
+    <loc>https://jianart.com/designs/motive/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/netflix-data-science</loc>
+    <loc>https://jianart.com/designs/netflix-data-science/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/uber-autonomous-vehicles</loc>
+    <loc>https://jianart.com/designs/uber-autonomous-vehicles/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/uber-data-intelligence</loc>
+    <loc>https://jianart.com/designs/uber-data-intelligence/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/uber-data-visualization-design-framework</loc>
+    <loc>https://jianart.com/designs/uber-data-visualization-design-framework/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://jianart.com/designs/uber-map-visualization-design-framework</loc>
+    <loc>https://jianart.com/designs/uber-map-visualization-design-framework/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
