@@ -13,8 +13,8 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- * ?shape=, currently an extracted molar, an MRI gantry, a flask, and a
- * binocular microscope), still
+ * ?shape=, currently an extracted molar, an MRI gantry, a flask, a
+ * binocular microscope, and a syringe), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -111,7 +111,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -425,6 +425,10 @@
       /* Side three-quarter: arm behind the tube, stage cantilever, both eyepieces. */
       rotY(q, -1.02 + 0.05 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.46);
+    } else if (kind === 'syringe') {
+      /* Needle down toward the viewer, plunger up and back, so the barrel stays round. */
+      rotY(q, -0.72 + 0.05 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.36);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -838,7 +842,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    molar: 1, mri: 1, flask: 1, microscope: 1
+    molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1520,6 +1524,72 @@
     return scopeEye(c < 0.5 ? 0 : 1, a, b);
   }
 
+  /* Syringe with the plunger drawn back. Volumes only: a filled barrel,
+     a washer flange the rod passes through, a short hub. No needle shaft. */
+  var SYR_THUMB0 = -0.90;
+  var SYR_THUMB1 = -0.76;
+  var SYR_ROD0 = -0.76;
+  var SYR_ROD1 = 0.18;
+  var SYR_FL0 = -0.10;
+  var SYR_FL1 = 0.04;
+  var SYR_BAR0 = 0.04;
+  var SYR_BAR1 = 0.82;
+  var SYR_HUB0 = 0.82;
+  var SYR_HUB1 = 0.98;
+  var SYR_TIP0 = 0.98;
+  var SYR_TIP1 = 1.12;
+
+  function syrPoint(f, a, b, c) {
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var x;
+    var rho;
+    var y;
+    var z;
+    var e;
+    var glow = 0;
+    var t;
+    if (f < 0.11) {
+      /* Thumb rest: a solid disc, smaller than the finger flange. */
+      x = SYR_THUMB0 + a * (SYR_THUMB1 - SYR_THUMB0);
+      rho = Math.sqrt(c) * 0.28;
+      e = rho > 0.2 ? 0.96 : 0.82;
+    } else if (f < 0.26) {
+      /* Rod, then the stopper where it enters the barrel. */
+      x = SYR_ROD0 + a * (SYR_ROD1 - SYR_ROD0);
+      rho = Math.sqrt(c) * (x > SYR_BAR0 ? 0.13 : 0.105);
+      e = x > SYR_BAR0 ? 0.93 : 0.52;
+    } else if (f < 0.46) {
+      /* Finger flange: thick washer, hole left for the rod. */
+      x = SYR_FL0 + a * (SYR_FL1 - SYR_FL0);
+      rho = Math.sqrt(0.145 * 0.145 + c * (0.44 * 0.44 - 0.145 * 0.145));
+      e = rho > 0.34 ? 0.97 : 0.8;
+      if (rho > 0.36) glow = 0.2;
+    } else if (f < 0.74) {
+      /* Filled barrel. Cream is the dose, settled on the low side. */
+      x = SYR_BAR0 + a * (SYR_BAR1 - SYR_BAR0);
+      rho = Math.sqrt(c) * 0.23;
+      y = co * rho;
+      z = si * rho;
+      e = y < -0.015 ? 0.9 : 0.46;
+      return [x, y, z, e, 0];
+    } else if (f < 0.9) {
+      t = a;
+      x = SYR_HUB0 + t * (SYR_HUB1 - SYR_HUB0);
+      rho = Math.sqrt(c) * (0.16 + (0.07 - 0.16) * t);
+      e = 0.58;
+    } else {
+      /* Luer tip: a short cone, thick enough that it stays a volume. */
+      t = a;
+      x = SYR_TIP0 + t * (SYR_TIP1 - SYR_TIP0);
+      rho = Math.sqrt(c) * (0.07 + (0.046 - 0.07) * t);
+      e = 0.95;
+      if (t > 0.55) glow = 0.28;
+    }
+    return [x, co * rho, si * rho, e, glow];
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1809,6 +1879,11 @@
     } else if (kind === 'microscope') {
       /* Binocular head, objective gap, and the stage aperture. */
       o = scopePoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'syringe') {
+      o = syrPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
