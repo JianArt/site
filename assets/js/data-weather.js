@@ -111,7 +111,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -429,6 +429,10 @@
       /* Needle down toward the viewer, plunger up and back, so the barrel stays round. */
       rotY(q, -0.72 + 0.05 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.36);
+    } else if (kind === 'rocket') {
+      /* Nose up. Two fins present their faces; the third stays behind the body. */
+      rotY(q, 0.48 + 0.05 * Math.sin(t * 0.00013 + seed));
+      rotX(q, 0.18);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -842,7 +846,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1
+    molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1590,6 +1594,140 @@
     return [x, co * rho, si * rho, e, glow];
   }
 
+  /* Sounding rocket, nose along +y. Fins are slabs, the bell is a shell,
+     and the plume is a cone of dots moving straight aft — never a spiral. */
+  var RKT_R = 0.26;
+  var RKT_BODY0 = -0.42;
+  var RKT_BODY1 = 0.26;
+  var RKT_NOSE = 0.80;
+  var RKT_NOZ1 = -0.68;
+  var RKT_PLUME = -0.96;
+  var RKT_FIN_R = 0.76;
+  var RKT_PORT_Y = -0.02;
+  var RKT_LIT = [-0.45, 0.18, 0.87];
+  var RKT_FINS = [0.47, 3.61, 5.18];
+
+  function rocketShade(nx, ny, nz) {
+    var d = nx * RKT_LIT[0] + ny * RKT_LIT[1] + nz * RKT_LIT[2];
+    if (d < 0) d = 0;
+    return 0.34 + 0.62 * d * d;
+  }
+
+  function rocketNose(a, b, c) {
+    var t = a;
+    var y = RKT_BODY1 + t * (RKT_NOSE - RKT_BODY1);
+    var rMax = RKT_R * (1 - t);
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var e = rocketShade(co * 0.84, 0.55, si * 0.84);
+    var glow = 0;
+    if (rMax < 0.02) rMax = 0.02;
+    if (t > 0.82) {
+      e = 0.96;
+      glow = 0.4;
+    }
+    return [co * Math.sqrt(c) * rMax, y, si * Math.sqrt(c) * rMax, e, glow];
+  }
+
+  function rocketBody(a, b, c) {
+    var y = RKT_BODY0 + a * (RKT_BODY1 - RKT_BODY0);
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var collar = y > RKT_BODY1 - 0.11;
+    var rho = RKT_R * (collar ? 1.02 + 0.06 * c : 0.94 + 0.06 * c);
+    var x = co * rho;
+    var z = si * rho;
+    var dy = y - RKT_PORT_Y;
+    var hole = 0.052;
+    var h;
+    if (z > RKT_R * 0.72 && x * x + dy * dy < hole * hole) {
+      h = Math.sqrt(x * x + dy * dy) || 1;
+      x = x / h * hole;
+      y = RKT_PORT_Y + dy / h * hole;
+      z = Math.sqrt(Math.max(0.02, RKT_R * RKT_R - x * x)) + 0.02;
+      return [x, y, z, 0.97, 0.45];
+    }
+    return [x, y, z, collar ? 0.92 : rocketShade(co, 0, si), collar ? 0.16 : 0];
+  }
+
+  function rocketPort(a, b) {
+    var ang = a * 6.2832;
+    var rho = 0.052 + 0.078 * Math.sqrt(b);
+    var x = Math.cos(ang) * rho;
+    var y = RKT_PORT_Y + Math.sin(ang) * rho;
+    var z = Math.sqrt(Math.max(0.02, RKT_R * RKT_R - x * x)) + 0.028;
+    return [x, y, z, 0.97, 0.5];
+  }
+
+  function rocketFin(k, a, b, c) {
+    var ang = RKT_FINS[k];
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var u = a;
+    var v = b;
+    var w;
+    var y;
+    var rad;
+    var th;
+    var d;
+    var e;
+    var glow = 0;
+    if (u + v > 1) {
+      u = 1 - u;
+      v = 1 - v;
+    }
+    w = 1 - u - v;
+    y = u * 0.1 + v * RKT_BODY0 + w * (RKT_BODY0 + 0.08);
+    rad = (u + v) * RKT_R + w * RKT_FIN_R;
+    th = (c - 0.5) * 0.15;
+    d = Math.abs(-si * RKT_LIT[0] + co * RKT_LIT[2]);
+    e = 0.38 + 0.5 * d * d;
+    if (w > 0.62) {
+      e = 0.94;
+      glow = 0.28;
+    }
+    return [co * rad - si * th, y, si * rad + co * th, e, glow];
+  }
+
+  function rocketNozzle(a, b, c) {
+    var t = a;
+    var y = RKT_BODY0 + t * (RKT_NOZ1 - RKT_BODY0);
+    var rad = 0.11 + 0.24 * t * t;
+    var ang = b * 6.2832;
+    var rho = rad * (0.74 + 0.26 * c);
+    var e = t > 0.76 ? 0.96 : rocketShade(Math.cos(ang), -0.25, Math.sin(ang));
+    return [Math.cos(ang) * rho, y, Math.sin(ang) * rho, e, t > 0.76 ? 0.32 : 0];
+  }
+
+  function rocketPlumeAt(s, ang, rad) {
+    var y0 = RKT_BODY0 - 0.04;
+    var rho = rad * (0.05 + s * 0.32);
+    return [Math.cos(ang) * rho, y0 + s * (RKT_PLUME - y0), Math.sin(ang) * rho];
+  }
+
+  function rocketPlume(a, b, c) {
+    var ang = b * 6.2832;
+    var rad = Math.sqrt(c);
+    var p = rocketPlumeAt(a, ang, rad);
+    return {
+      x: p[0], y: p[1], z: p[2],
+      e: a < 0.3 ? 0.95 : 0.55,
+      glow: a < 0.28 ? 0.65 : 0,
+      u0: a, ang: ang, rad: rad,
+      spd: 0.00032 + c * 0.00028
+    };
+  }
+
+  function rocketPoint(f, a, b, c) {
+    if (f < 0.18) return rocketNose(a, b, c);
+    if (f < 0.46) return rocketBody(a, b, c);
+    if (f < 0.52) return rocketPort(a, b);
+    if (f < 0.78) return rocketFin(f < 0.607 ? 0 : f < 0.693 ? 1 : 2, a, b, c);
+    return rocketNozzle(a, b, c);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1887,6 +2025,23 @@
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
+    } else if (kind === 'rocket') {
+      if (f < 0.9) {
+        o = rocketPoint(f, a, b, c);
+        p = [o[0], o[1], o[2]];
+        e = o[3];
+        if (o[4]) out.glow = o[4];
+      } else {
+        o = rocketPlume(a, b, c);
+        out.mv = 'plume';
+        out.u0 = o.u0;
+        out.ang = o.ang;
+        out.rad = o.rad;
+        out.spd = o.spd;
+        out.glow = o.glow;
+        p = [o.x, o.y, o.z];
+        e = o.e;
+      }
     } else if (kind === 'molecule') {
       o = pickAcc(MOLECULE.atoms, a * MOLECULE.total);
       p = shell([o.x, o.y, o.z], o.r, dir);
@@ -2160,6 +2315,18 @@
       o.th = -9;
       o.r = sp.r;
       return o;
+    }
+    if (sp.mv === 'plume') {
+      s = sp.u0 + sp.spd * t;
+      s -= Math.floor(s);
+      o = rocketPlumeAt(s, sp.ang, sp.rad);
+      return {
+        x: o[0], y: o[1], z: o[2],
+        e: s < 0.3 ? 0.95 : 0.52,
+        th: -9, r: sp.r,
+        glow: s < 0.28 ? 0.65 : 0,
+        fe: clamp01(Math.min(s, 1 - s) / 0.14)
+      };
     }
     if (sp.mv === 'blood') {
       cell = perSeed('blood', stage.seed, bloodCells)[sp.ci];
