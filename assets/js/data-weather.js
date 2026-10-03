@@ -14,7 +14,8 @@
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
  * ?shape=, currently an extracted molar, an MRI gantry, a flask, a
- * binocular microscope, and a syringe), still
+ * binocular microscope, a syringe, a sounding rocket, and a radar
+ * dish), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -111,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -432,6 +433,10 @@
     } else if (kind === 'rocket') {
       /* Nose up. Two fins present their faces; the third stays behind the body. */
       rotY(q, 0.48 + 0.05 * Math.sin(t * 0.00013 + seed));
+      rotX(q, 0.18);
+    } else if (kind === 'radar') {
+      /* Into the bowl, low enough that the feed horn clears the lower rim. */
+      rotY(q, -0.95 + 0.05 * Math.sin(t * 0.00013 + seed));
       rotX(q, 0.18);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
@@ -846,7 +851,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1
+    molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1728,6 +1733,134 @@
     return rocketNozzle(a, b, c);
   }
 
+  /* Parabolic radar dish. The horn sits in front of the rim, on one thick
+     arm, so the profile reads as a dish and not a bowl on a stick. */
+  var RADAR_R = 0.7;
+  var RADAR_F = 0.32;
+  var RADAR_CY = 0.16;
+  var RADAR_LIT = [-0.22, 0.48, 0.85];
+  var RADAR_ARM = [[0, -0.5, 0.34], [0, -0.3, 0.62], [0, -0.12, 0.74]];
+  var RADAR_LNB = [[0, -0.1, 0.68], [0, -0.16, 0.82], [0, -0.2, 0.96]];
+
+  function radarZ(rho) {
+    return rho * rho / (4 * RADAR_F);
+  }
+
+  function radarShade(nx, ny, nz) {
+    var d = nx * RADAR_LIT[0] + ny * RADAR_LIT[1] + nz * RADAR_LIT[2];
+    if (d < 0) d = 0;
+    return 0.3 + 0.58 * d * d;
+  }
+
+  function radarFace(a, b) {
+    var ang = b * 6.2832;
+    var rho = (RADAR_R - 0.045) * Math.sqrt(a);
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var slope = rho / (2 * RADAR_F);
+    var nl = Math.sqrt(slope * slope + 1);
+    return [
+      co * rho,
+      RADAR_CY + si * rho,
+      radarZ(rho),
+      radarShade(-co * slope / nl, -si * slope / nl, 1 / nl),
+      0
+    ];
+  }
+
+  function radarRim(a, b) {
+    var ang = b * 6.2832;
+    var pol = a * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var lip = Math.cos(pol) * 0.046;
+    var rr = RADAR_R + lip;
+    var e = radarShade(co * 0.72, si * 0.45, 0.55);
+    return [
+      co * rr,
+      RADAR_CY + si * rr,
+      radarZ(RADAR_R) + Math.sin(pol) * 0.046,
+      e > 0.72 ? 0.9 : e,
+      e > 0.8 ? 0.18 : 0
+    ];
+  }
+
+  function radarBack(a, b) {
+    var ang = b * 6.2832;
+    var rho = (RADAR_R - 0.05) * Math.sqrt(a);
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    return [
+      co * rho,
+      RADAR_CY + si * rho,
+      radarZ(rho) - 0.055 * (0.35 + 0.65 * rho / RADAR_R),
+      0.28 + 0.08 * (si > 0 ? si : 0),
+      0
+    ];
+  }
+
+  function radarArm(a, b) {
+    var p = tubeAt(RADAR_ARM, a, 0.072, b * 6.2832);
+    return [p[0], p[1], p[2], 0.46 + 0.12 * a, 0];
+  }
+
+  function radarLnb(a, b, c) {
+    var ang = b * 6.2832;
+    var rad = 0.095;
+    var t = a;
+    var e = 0.94;
+    var glow = 0.28;
+    if (c > 0.7) {
+      /* Scalar ring: a short solid disc, not a wire circle. */
+      t = 0.18 + a * 0.16;
+      rad = 0.11 + Math.sqrt((c - 0.7) / 0.3) * 0.07;
+      e = 0.98;
+      glow = 0.4;
+    } else if (a > 0.82) {
+      t = 1;
+      rad = Math.sqrt(c / 0.7) * 0.095;
+      glow = 0.38;
+    }
+    var p = tubeAt(RADAR_LNB, t, rad, ang);
+    return [p[0], p[1], p[2], e, glow];
+  }
+
+  function radarHub(a, b) {
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    return [co * 0.15, -0.02 + (a - 0.5) * 0.2, -0.12 + si * 0.1, 0.5, 0];
+  }
+
+  function radarPole(a, b) {
+    var ang = b * 6.2832;
+    var y = -0.12 + a * (-0.78 + 0.12);
+    return [Math.cos(ang) * 0.075, y, -0.08 + Math.sin(ang) * 0.075, 0.4, 0];
+  }
+
+  function radarBase(a, b) {
+    var ang = b * 6.2832;
+    var rho = Math.sqrt(a) * 0.3;
+    return [
+      Math.cos(ang) * rho,
+      -0.8,
+      -0.08 + Math.sin(ang) * rho * 0.55,
+      rho > 0.22 ? 0.64 : 0.44,
+      0
+    ];
+  }
+
+  function radarPoint(f, a, b, c) {
+    if (f < 0.4) return radarFace(a, b);
+    if (f < 0.54) return radarRim(a, b);
+    if (f < 0.6) return radarBack(a, b);
+    if (f < 0.72) return radarArm(a, b);
+    if (f < 0.86) return radarLnb(a, b, c);
+    if (f < 0.9) return radarHub(a, b);
+    if (f < 0.95) return radarPole(a, b);
+    return radarBase(a, b);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -2042,6 +2175,11 @@
         p = [o.x, o.y, o.z];
         e = o.e;
       }
+    } else if (kind === 'radar') {
+      o = radarPoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
     } else if (kind === 'molecule') {
       o = pickAcc(MOLECULE.atoms, a * MOLECULE.total);
       p = shell([o.x, o.y, o.z], o.r, dir);
