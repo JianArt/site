@@ -13,9 +13,9 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- * ?shape=, currently an extracted molar, an MRI gantry, a flask, a
- * binocular microscope, a syringe, a sounding rocket, and a radar
- * dish), still
+ *   ?shape=, currently an extracted molar, an MRI gantry, a flask, a
+ * binocular microscope, a syringe, a sounding rocket, a radar
+ * dish, and an eye), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -438,6 +438,10 @@
       /* Into the bowl, low enough that the feed horn clears the lower rim. */
       rotY(q, -0.95 + 0.05 * Math.sin(t * 0.00013 + seed));
       rotX(q, 0.18);
+    } else if (kind === 'eye') {
+      /* Near-frontal, so the pupil stays a hole and the lids keep their arch. */
+      rotY(q, 0.28 + 0.04 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.1);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -851,7 +855,8 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1
+    molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1,
+    eye: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1861,6 +1866,117 @@
     return radarBase(a, b);
   }
 
+  /* Open eye. The pupil is empty, so it stays the page's own dark.
+     Lids are gold volumes. No lashes: a row of beads would read as a line. */
+  var EYE_R = 0.62;
+  var EYE_IRIS = 0.3;
+  var EYE_PUPIL = 0.145;
+  var EYE_HALF = 0.98;
+  var EYE_LIT = [-0.32, 0.58, 0.75];
+
+  function eyeShade(nx, ny, nz) {
+    var d = nx * EYE_LIT[0] + ny * EYE_LIT[1] + nz * EYE_LIT[2];
+    if (d < 0) d = 0;
+    return 0.3 + 0.3 * d * d;
+  }
+
+  function eyeFissure(x) {
+    var u = x / EYE_HALF;
+    if (u < -1) u = -1;
+    if (u > 1) u = 1;
+    var w = Math.sqrt(1 - u * u);
+    var tilt = -0.028 * u;
+    return { hi: tilt + 0.05 + 0.4 * w, lo: tilt - 0.035 - 0.34 * w };
+  }
+
+  function eyeSurfaceZ(x, y) {
+    var r2 = x * x + y * y;
+    var cap = EYE_R * EYE_R * 0.985;
+    if (r2 < cap) return Math.sqrt(cap - r2);
+    return Math.max(-0.06, 0.06 - (r2 - cap) * 0.5);
+  }
+
+  function eyeSclera(id, a, b) {
+    var x;
+    var y;
+    var r;
+    var f;
+    var k;
+    var u;
+    var v;
+    var ok = false;
+    for (k = 0; k < 8; k++) {
+      u = mix01(id ^ (0x51ed270b + k * 0x9e3779b9));
+      v = mix01(id ^ (0x6c8e9cf5 + k * 0x7f4a7c15));
+      x = (u - 0.5) * 2 * EYE_R * 0.96;
+      f = eyeFissure(x);
+      y = f.lo + v * (f.hi - f.lo);
+      r = Math.sqrt(x * x + y * y);
+      if (r > EYE_IRIS + 0.02 && r < EYE_R * 0.98) {
+        ok = true;
+        break;
+      }
+    }
+    if (!ok) {
+      x = (b < 0.5 ? -1 : 1) * (EYE_IRIS + 0.06 + a * (EYE_R * 0.9 - EYE_IRIS));
+      y = (a - 0.5) * 0.16;
+      r = Math.sqrt(x * x + y * y);
+    }
+    var z = Math.sqrt(Math.max(0.008, EYE_R * EYE_R - Math.min(r * r, EYE_R * EYE_R * 0.96)));
+    return [x * 0.985, y * 0.985, z * 0.985, eyeShade(x / EYE_R, y / EYE_R, z / EYE_R), 0];
+  }
+
+  function eyeIris(a, b) {
+    var ang = b * 6.2832;
+    var rho = Math.sqrt(EYE_PUPIL * EYE_PUPIL + a * (EYE_IRIS * EYE_IRIS - EYE_PUPIL * EYE_PUPIL));
+    var x = Math.cos(ang) * rho;
+    var y = Math.sin(ang) * rho;
+    var z = Math.sqrt(Math.max(0.01, EYE_R * EYE_R - rho * rho)) + 0.02;
+    var t = (rho - EYE_PUPIL) / (EYE_IRIS - EYE_PUPIL);
+    var band = Math.exp(-Math.pow((t - 0.42) / 0.28, 2));
+    var e = 0.78 + 0.16 * band + 0.025 * Math.sin(ang * 2 + t * 4);
+    if (e > 0.97) e = 0.97;
+    return [x, y, z, e, 0];
+  }
+
+  function eyeGlint(a, b) {
+    var ang = a * 6.2832;
+    var rho = 0.04 * Math.sqrt(b);
+    var x = -0.14 + Math.cos(ang) * rho;
+    var y = 0.1 + Math.sin(ang) * rho;
+    var z = Math.sqrt(Math.max(0.01, EYE_R * EYE_R - x * x - y * y)) + 0.05;
+    return [x, y, z, 0.99, 0.85];
+  }
+
+  function eyeUpper(a, b, c) {
+    var x = (a - 0.5) * 2 * EYE_HALF;
+    var f = eyeFissure(x);
+    var taper = Math.min(1, (f.hi - f.lo) / 0.6);
+    var rise = (0.06 + 0.22 * taper) * b;
+    var y = f.hi + rise;
+    var skin = 0.02 + c * (0.045 + 0.05 * (1 - b));
+    var z = eyeSurfaceZ(x, f.hi + rise * 0.25) + skin;
+    return [x, y, z, 0.36 + 0.22 * c * (1 - 0.4 * b), 0];
+  }
+
+  function eyeLower(a, b, c) {
+    var x = (a - 0.5) * 2 * EYE_HALF;
+    var f = eyeFissure(x);
+    var taper = Math.min(1, (f.hi - f.lo) / 0.6);
+    var drop = (0.04 + 0.13 * taper) * b;
+    var y = f.lo - drop;
+    var z = eyeSurfaceZ(x, f.lo - drop * 0.2) + 0.015 + c * 0.055;
+    return [x, y, z, 0.34 + 0.2 * c * (1 - 0.35 * b), 0];
+  }
+
+  function eyePoint(f, a, b, c, id) {
+    if (f < 0.38) return eyeSclera(id, a, b);
+    if (f < 0.66) return eyeIris(a, b);
+    if (f < 0.69) return eyeGlint(a, b);
+    if (f < 0.88) return eyeUpper(a, b, c);
+    return eyeLower(a, b, c);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -2177,6 +2293,11 @@
       }
     } else if (kind === 'radar') {
       o = radarPoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'eye') {
+      o = eyePoint(f, a, b, c, id);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
