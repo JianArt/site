@@ -15,7 +15,7 @@
  * its own solid with data-shape on the hero; the lab previews with
  *   ?shape=, currently an extracted molar, an MRI gantry, a flask, a
  * binocular microscope, a syringe, a sounding rocket, a radar
- * dish, and an eye), still
+ * dish, an eye, and a skull), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -442,6 +442,10 @@
       /* Near-frontal, so the pupil stays a hole and the lids keep their arch. */
       rotY(q, 0.28 + 0.04 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.1);
+    } else if (kind === 'skull') {
+      /* Near-frontal, so both orbits stay open and the jaw hangs under the nose. */
+      rotY(q, 0.30 + 0.04 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.06);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -856,7 +860,7 @@
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1,
-    eye: 1
+    eye: 1, skull: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1977,6 +1981,86 @@
     return eyeLower(a, b, c);
   }
 
+  /* Frontal skull: one shell. Orbits, nasal aperture and mouth are
+     holes through it. The mouth is an opening, with no rim of beads. */
+  function skullEyeM(x, y) {
+    var sx = Math.abs(x) - 0.22;
+    var sy = y - 0.14;
+    return (sx * sx) / (0.16 * 0.16) + (sy * sy) / (0.18 * 0.18);
+  }
+
+  function skullNoseM(x, y) {
+    var y0 = -0.22;
+    var y1 = 0.00;
+    var t;
+    var half;
+    if (y < y0 || y > y1) return 4;
+    t = (y - y0) / (y1 - y0);
+    half = 0.038 + 0.08 * (1 - t) * (1 - t);
+    return (x * x) / (half * half) + Math.pow((t - 0.42) / 0.58, 2);
+  }
+
+  function skullMouthM(x, y) {
+    var dx = x / 0.20;
+    var dy = (y + 0.40) / 0.13;
+    return dx * dx + dy * dy;
+  }
+
+  function skullWarp(dir, b) {
+    var t;
+    var px = dir[0] * 0.62;
+    var py = dir[1] * 0.70 + 0.04;
+    var pz = dir[2] * 0.50;
+    var cheek;
+    var brow;
+    var shell = 0.90 + 0.10 * b;
+    if (dir[1] < -0.15) {
+      t = clamp01((-0.15 - dir[1]) / 0.85);
+      px *= 1 - 0.34 * t * t;
+      py -= 0.16 * t;
+      if (pz > 0) pz += 0.08 * t;
+    }
+    brow = Math.exp(-Math.pow((py - 0.36) / 0.09, 2)) * Math.exp(-Math.pow(px / 0.40, 2));
+    if (pz > 0) pz += 0.05 * brow;
+    cheek = Math.exp(-Math.pow((py + 0.02) / 0.14, 2)) * Math.exp(-Math.pow((Math.abs(px) - 0.32) / 0.16, 2));
+    if (pz > -0.02) {
+      px += (px < 0 ? -1 : 1) * 0.05 * cheek;
+      pz += 0.05 * cheek;
+    }
+    return [px * shell, py * shell, pz * shell];
+  }
+
+  function skullPoint(id, b) {
+    var dir;
+    var p;
+    var k;
+    var e;
+    var glow;
+    var eye;
+    var nose;
+    for (k = 0; k < 14; k++) {
+      dir = vNorm(gauss3(id ^ (0xa5b4c3d1 + k * 0x9e3779b9)));
+      if (dir[2] < -0.05 && mix01(id ^ (0x6a09e667 + k * 0x9e3779b9)) < 0.58) continue;
+      p = skullWarp(dir, b);
+      eye = skullEyeM(p[0], p[1]);
+      nose = skullNoseM(p[0], p[1]);
+      if (eye < 1 || nose < 1 || skullMouthM(p[0], p[1]) < 1) continue;
+      e = 0.32 + 0.58 * clamp01(p[2] / 0.42);
+      glow = 0;
+      if (eye < 1.38 && p[2] > 0) {
+        e = 0.96;
+        glow = 0.28;
+      } else if (nose < 1.45 && p[2] > 0.04) {
+        e = 0.86;
+      } else if (p[1] > 0.40 && p[2] > 0.16) {
+        e = Math.max(e, 0.82);
+        glow = 0.1;
+      }
+      return [p[0], p[1], p[2], e, glow];
+    }
+    return [0, 0.62, 0.22, 0.8, 0];
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -2298,6 +2382,11 @@
       if (o[4]) out.glow = o[4];
     } else if (kind === 'eye') {
       o = eyePoint(f, a, b, c, id);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'skull') {
+      o = skullPoint(id, b);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
