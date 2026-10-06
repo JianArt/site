@@ -15,7 +15,7 @@
  * its own solid with data-shape on the hero; the lab previews with
  *   ?shape=, currently an extracted molar, an MRI gantry, a flask, a
  * binocular microscope, a syringe, a sounding rocket, a radar
- * dish, an eye, and a skull), still
+ * dish, an eye, a skull, and a stethoscope), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -446,6 +446,10 @@
       /* Near-frontal, so both orbits stay open and the jaw hangs under the nose. */
       rotY(q, 0.30 + 0.04 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.06);
+    } else if (kind === 'stethoscope') {
+      /* Near-frontal: both ear hooks and the diaphragm face stay in view. */
+      rotY(q, 0.22 + 0.04 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.08);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -860,7 +864,7 @@
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1,
-    eye: 1, skull: 1
+    eye: 1, skull: 1, stethoscope: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -2061,6 +2065,142 @@
     return [0, 0.62, 0.22, 0.8, 0];
   }
 
+  /* Stethoscope. Diaphragm, one rubber hose, two ear hooks.
+     Every tube is a filled volume; the rim is a fat torus, not a wire. */
+  var STETH_R = 0.36;
+  var STETH_CY = -0.50;
+  var STETH_LIT = [-0.28, 0.46, 0.84];
+  var STETH_HOSE = [[0.03, -0.22, 0.02], [0.12, -0.04, 0.05], [0, 0.12, 0.04]];
+
+  function stethShade(nx, ny, nz) {
+    var d = nx * STETH_LIT[0] + ny * STETH_LIT[1] + nz * STETH_LIT[2];
+    if (d < 0) d = 0;
+    return 0.30 + 0.55 * d * d;
+  }
+
+  function stethArm(side) {
+    return [
+      [0, 0.08, 0.04],
+      [side * 0.52, 0.38, 0.06],
+      [side * 1.02, 0.62, 0.10],
+      [side * 0.40, 0.82, 0.30]
+    ];
+  }
+
+  function stethFrame(P, s) {
+    var m = 1 - s;
+    var m2 = m * m;
+    var s2 = s * s;
+    var k0 = m2 * m;
+    var k1 = 3 * m2 * s;
+    var k2 = 3 * m * s2;
+    var k3 = s * s2;
+    var tan = vNorm([
+      3 * m2 * (P[1][0] - P[0][0]) + 6 * m * s * (P[2][0] - P[1][0]) + 3 * s2 * (P[3][0] - P[2][0]),
+      3 * m2 * (P[1][1] - P[0][1]) + 6 * m * s * (P[2][1] - P[1][1]) + 3 * s2 * (P[3][1] - P[2][1]),
+      3 * m2 * (P[1][2] - P[0][2]) + 6 * m * s * (P[2][2] - P[1][2]) + 3 * s2 * (P[3][2] - P[2][2])
+    ]);
+    var nrm = vNorm(vCross(tan, Math.abs(tan[1]) > 0.85 ? [1, 0, 0] : [0, 1, 0]));
+    return {
+      c: [
+        k0 * P[0][0] + k1 * P[1][0] + k2 * P[2][0] + k3 * P[3][0],
+        k0 * P[0][1] + k1 * P[1][1] + k2 * P[2][1] + k3 * P[3][1],
+        k0 * P[0][2] + k1 * P[1][2] + k2 * P[2][2] + k3 * P[3][2]
+      ],
+      tan: tan,
+      nrm: nrm,
+      bin: vCross(tan, nrm)
+    };
+  }
+
+  function stethFill(frame, rad, ang) {
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var nx = co * frame.nrm[0] + si * frame.bin[0];
+    var ny = co * frame.nrm[1] + si * frame.bin[1];
+    var nz = co * frame.nrm[2] + si * frame.bin[2];
+    return [
+      frame.c[0] + rad * nx,
+      frame.c[1] + rad * ny,
+      frame.c[2] + rad * nz,
+      nx, ny, nz
+    ];
+  }
+
+  function stethChest(a, b, c) {
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rho;
+    var z;
+    var tube;
+    var pol;
+    if (c < 0.68) {
+      rho = (STETH_R - 0.03) * Math.sqrt(a);
+      z = 0.05 + 0.035 * (1 - rho / STETH_R);
+      return [co * rho, STETH_CY + si * rho, z, 0.40 + 0.24 * (rho / STETH_R), 0];
+    }
+    if (c < 0.88) {
+      pol = a * 6.2832;
+      tube = 0.072 * (0.42 + 0.58 * Math.sqrt((c - 0.68) / 0.2));
+      rho = STETH_R + Math.cos(pol) * tube;
+      z = Math.sin(pol) * tube * 0.85;
+      return [co * rho, STETH_CY + si * rho, z, z > 0 ? 0.94 : 0.78, z > 0 ? 0.2 : 0];
+    }
+    rho = STETH_R * 0.9 * Math.sqrt(a);
+    z = -0.055 - 0.03 * (1 - rho / STETH_R);
+    return [co * rho, STETH_CY + si * rho, z, 0.34, 0];
+  }
+
+  function stethHose(a, b, c) {
+    var p = tubeAt(STETH_HOSE, a, 0.14 * Math.sqrt(c), b * 6.2832);
+    return [p[0], p[1], p[2], 0.44, 0];
+  }
+
+  function stethYoke(a, b, c) {
+    var ang = b * 6.2832;
+    var rho = Math.sqrt(c) * 0.18;
+    return [
+      Math.cos(ang) * rho,
+      0.10 + (a - 0.5) * 0.10,
+      0.045 + Math.sin(ang) * rho * 0.82,
+      rho > 0.11 ? 0.92 : 0.74,
+      rho > 0.11 ? 0.16 : 0
+    ];
+  }
+
+  function stethBinaural(side, a, b, c) {
+    var frame = stethFrame(stethArm(side), a);
+    var p = stethFill(frame, 0.125 * Math.sqrt(c), b * 6.2832);
+    var e = Math.max(0.58, stethShade(p[3], p[4], p[5]));
+    return [p[0], p[1], p[2], e, e > 0.72 ? 0.14 : 0];
+  }
+
+  function stethOlive(side, a, b, c) {
+    var frame = stethFrame(stethArm(side), 1);
+    var along = (a - 0.5) * 2;
+    var rad = Math.sqrt(Math.max(0, 1 - along * along)) * 0.18 * Math.sqrt(c);
+    var p = stethFill(frame, rad, b * 6.2832);
+    var shift = along * 0.16;
+    return [
+      p[0] + frame.tan[0] * shift,
+      p[1] + frame.tan[1] * shift,
+      p[2] + frame.tan[2] * shift,
+      0.97,
+      0.38
+    ];
+  }
+
+  function stethPoint(f, a, b, c) {
+    var side = a < 0.5 ? -1 : 1;
+    var u = a < 0.5 ? a * 2 : (a - 0.5) * 2;
+    if (f < 0.36) return stethChest(a, b, c);
+    if (f < 0.50) return stethHose(a, b, c);
+    if (f < 0.56) return stethYoke(a, b, c);
+    if (f < 0.86) return stethBinaural(side, u, b, c);
+    return stethOlive(side, u, b, c);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -2387,6 +2527,11 @@
       if (o[4]) out.glow = o[4];
     } else if (kind === 'skull') {
       o = skullPoint(id, b);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'stethoscope') {
+      o = stethPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
