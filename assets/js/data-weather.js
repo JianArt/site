@@ -15,7 +15,7 @@
  * its own solid with data-shape on the hero; the lab previews with
  *   ?shape=, currently an extracted molar, an MRI gantry, a flask, a
  * binocular microscope, a syringe, a sounding rocket, a radar
- * dish, an eye, a skull, and a stethoscope), still
+ * dish, an eye, a skull, a stethoscope, and a bionic hand), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -450,6 +450,10 @@
       /* Near-frontal: both ear hooks and the diaphragm face stay in view. */
       rotY(q, 0.22 + 0.04 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.08);
+    } else if (kind === 'bionic') {
+      /* Nearly frontal, so the four fingers and the thumb read as a hand. */
+      rotY(q, 0.18 + 0.04 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.10);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -864,7 +868,7 @@
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1,
-    eye: 1, skull: 1, stethoscope: 1
+    eye: 1, skull: 1, stethoscope: 1, bionic: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -2201,6 +2205,82 @@
     return stethOlive(side, u, b, c);
   }
 
+  /* Bionic hand, nearly frontal. A filled palm, a narrower wrist,
+     four fingers in two segments, and a thumb off to the side.
+     The joint gaps stay empty so the hand is not a mitt. */
+  var BIONIC_THUMB = [
+    [-0.50, -0.04, -0.98, 0.22, 0.105, 0.078],
+    [-0.90, 0.34, -0.70, 0.56, 0.070, 0.048]
+  ];
+  /* x0, y0, x1, y1, r0, r1. Index, middle, ring, pinky; two segments each.
+     Centers sit a full finger-width apart so the gaps survive at phone size. */
+  var BIONIC_FINGERS = [
+    [-0.46, 0.14, -0.50, 0.40, 0.072, 0.064],
+    [-0.51, 0.50, -0.54, 0.68, 0.058, 0.044],
+    [-0.16, 0.16, -0.16, 0.46, 0.078, 0.068],
+    [-0.16, 0.56, -0.15, 0.80, 0.062, 0.046],
+    [0.14, 0.15, 0.17, 0.44, 0.074, 0.064],
+    [0.18, 0.54, 0.20, 0.74, 0.058, 0.042],
+    [0.42, 0.14, 0.48, 0.36, 0.060, 0.052],
+    [0.49, 0.46, 0.54, 0.60, 0.046, 0.034]
+  ];
+
+  function bionicPalm(a, b, c) {
+    var u = b * 6.2832;
+    var rho = Math.sqrt(a);
+    var co = Math.cos(u);
+    var si = Math.sin(u);
+    var n = 2.4;
+    var ex = Math.pow(Math.abs(co), 2 / n) * (co < 0 ? -1 : 1);
+    var ey = Math.pow(Math.abs(si), 2 / n) * (si < 0 ? -1 : 1);
+    var x = ex * 0.62 * rho;
+    var y = -0.08 + ey * 0.28 * rho;
+    var z = (c - 0.5) * 0.16;
+    return [x, y, z, 0.52 + 0.1 * clamp01(0.5 + z * 3), 0];
+  }
+
+  function bionicWrist(a, b, c) {
+    var y = -0.64 + c * 0.36;
+    var ang = b * 6.2832;
+    var rho = Math.sqrt(a);
+    var band = Math.abs(y + 0.48) < 0.04;
+    return [
+      Math.cos(ang) * 0.26 * rho,
+      y,
+      Math.sin(ang) * 0.09 * rho,
+      band ? 0.92 : 0.4,
+      band ? 0.16 : 0
+    ];
+  }
+
+  function bionicRod(seg, a, b, c, tip) {
+    var along = c;
+    var x = seg[0] + (seg[2] - seg[0]) * along;
+    var y = seg[1] + (seg[3] - seg[1]) * along;
+    var rad = (seg[4] + (seg[5] - seg[4]) * along) * Math.sqrt(a);
+    var ang = b * 6.2832;
+    var e = 0.84;
+    var glow = 0;
+    if (tip && along > 0.72) {
+      e = 0.97;
+      glow = 0.4;
+    } else if (along < 0.1 || along > 0.9) {
+      e = 0.92;
+    }
+    return [x + Math.cos(ang) * rad, y, Math.sin(ang) * rad * 0.72, e, glow];
+  }
+
+  function bionicPoint(f, a, b, c) {
+    var i;
+    if (f < 0.22) return bionicPalm(a, b, c);
+    if (f < 0.30) return bionicWrist(a, b, c);
+    if (f < 0.40) return bionicRod(BIONIC_THUMB[0], a, b, c, false);
+    if (f < 0.48) return bionicRod(BIONIC_THUMB[1], a, b, c, true);
+    i = (f - 0.48) / 0.52 * 8 | 0;
+    if (i > 7) i = 7;
+    return bionicRod(BIONIC_FINGERS[i], a, b, c, (i & 1) === 1);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -2532,6 +2612,11 @@
       if (o[4]) out.glow = o[4];
     } else if (kind === 'stethoscope') {
       o = stethPoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'bionic') {
+      o = bionicPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
