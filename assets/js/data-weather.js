@@ -15,7 +15,8 @@
  * its own solid with data-shape on the hero; the lab previews with
  *   ?shape=, currently an extracted molar, an MRI gantry, a flask, a
  * binocular microscope, a syringe, a sounding rocket, a radar
- * dish, an eye, a skull, a stethoscope, and a bionic hand), still
+ * dish, an eye, a skull, a stethoscope, a bionic hand, and a
+ * wheelchair), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -112,7 +113,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -454,6 +455,10 @@
       /* Nearly frontal, so the four fingers and the thumb read as a hand. */
       rotY(q, 0.18 + 0.04 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.10);
+    } else if (kind === 'wheelchair') {
+      /* Side three-quarter: the big wheel stays a ring, the caster sits ahead. */
+      rotY(q, 0.38 + 0.04 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.14);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -868,7 +873,7 @@
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1,
-    eye: 1, skull: 1, stethoscope: 1, bionic: 1
+    eye: 1, skull: 1, stethoscope: 1, bionic: 1, wheelchair: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -2281,6 +2286,114 @@
     return bionicRod(BIONIC_FINGERS[i], a, b, c, (i & 1) === 1);
   }
 
+  /* Manual wheelchair in profile, caster toward +x. The cushion sits on the
+     crown of the big wheel so the hole below it stays empty. The figure
+     is in front of the chair and cream; the chair stays gold.
+     Mean camera rotY(0.38), rotX(0.14). */
+  var CHAIR_CX = 0.10;
+  var CHAIR_CY = -0.22;
+  var CHAIR_R = 0.42;
+  var CHAIR_T = 0.10;
+
+  function chairTire(cx, cy, cz, R, tube, a, b, c, e0) {
+    var th = b * 6.2832;
+    var ph = a * 6.2832;
+    var rho = Math.sqrt(c) * tube;
+    var rr = R + Math.cos(ph) * rho;
+    var co = Math.cos(th);
+    var si = Math.sin(th);
+    var light = co * 0.35 + si * 0.82;
+    if (light < 0) light = 0;
+    return [cx + rr * co, cy + rr * si, cz + Math.sin(ph) * rho, e0 + 0.34 * light, 0];
+  }
+
+  function chairHub(cx, cy, cz, rad, zHalf, a, b, c) {
+    var ang = b * 6.2832;
+    var rho = Math.sqrt(a) * rad;
+    return [cx + Math.cos(ang) * rho, cy + Math.sin(ang) * rho, cz + (c * 2 - 1) * zHalf, 0.94, 0.16];
+  }
+
+  function chairBall(cx, cy, cz, r, a, b, c, e, glow) {
+    var rad = r * Math.pow(Math.max(1e-6, c), 1 / 3);
+    var phi = Math.acos(2 * a - 1);
+    var ang = b * 6.2832;
+    var s = Math.sin(phi);
+    return [cx + rad * s * Math.cos(ang), cy + rad * Math.cos(phi), cz + rad * s * Math.sin(ang), e, glow];
+  }
+
+  function chairRod(p0, p1, rad, a, b, c, e, glow) {
+    var dx = p1[0] - p0[0];
+    var dy = p1[1] - p0[1];
+    var dz = p1[2] - p0[2];
+    var len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    var ux = dx / len;
+    var uy = dy / len;
+    var uz = dz / len;
+    var hx = Math.abs(uz) > 0.85 ? 1 : 0;
+    var hz = hx ? 0 : 1;
+    var nx = uy * hz - uz * 0;
+    var ny = uz * hx - ux * hz;
+    var nz = ux * 0 - uy * hx;
+    var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    var bx;
+    var by;
+    var bz;
+    var ang;
+    var co;
+    var si;
+    var rho;
+    nx /= nl;
+    ny /= nl;
+    nz /= nl;
+    bx = uy * nz - uz * ny;
+    by = uz * nx - ux * nz;
+    bz = ux * ny - uy * nx;
+    ang = b * 6.2832;
+    co = Math.cos(ang);
+    si = Math.sin(ang);
+    rho = Math.sqrt(c) * rad;
+    return [
+      p0[0] + dx * a + (nx * co + bx * si) * rho,
+      p0[1] + dy * a + (ny * co + by * si) * rho,
+      p0[2] + dz * a + (nz * co + bz * si) * rho,
+      e,
+      glow
+    ];
+  }
+
+  function chairSeat(a, b, c) {
+    return [-0.52 + a * 0.98, 0.22 + b * 0.12, 0.02 + c * 0.16, 0.50 + 0.14 * b, 0];
+  }
+
+  function chairBack(a, b, c) {
+    var x0 = -0.56 + a * -0.08;
+    var x1 = -0.32 + a * -0.06;
+    return [x0 + b * (x1 - x0), 0.26 + a * 0.48, 0.02 + c * 0.15, 0.46, 0];
+  }
+
+  function chairFoot(a, b, c) {
+    return [0.68 + a * 0.40, -0.42 + b * 0.10, 0.04 + c * 0.18, 0.58, 0];
+  }
+
+  function chairPoint(f, a, b, c) {
+    var u = a < 0.5 ? a * 2 : (a - 0.5) * 2;
+    if (f < 0.30) return chairTire(CHAIR_CX, CHAIR_CY, 0, CHAIR_R, CHAIR_T, a, b, c, 0.30);
+    if (f < 0.35) return chairHub(CHAIR_CX, CHAIR_CY, 0, 0.07, 0.05, a, b, c);
+    if (f < 0.41) return chairTire(0.94, -0.56, 0, 0.15, 0.048, a, b, c, 0.32);
+    if (f < 0.44) return chairHub(0.94, -0.56, 0, 0.04, 0.03, a, b, c);
+    if (f < 0.52) return chairSeat(a, b, c);
+    if (f < 0.60) return chairBack(a, b, c);
+    if (f < 0.64) return chairBall(-0.50, 0.80, a < 0.5 ? -0.13 : 0.13, 0.05, u, b, c, 0.64, 0);
+    if (f < 0.68) return chairRod([0.62, 0.16, 0.06], [0.94, -0.46, 0.04], 0.055, a, b, c, 0.42, 0);
+    if (f < 0.72) return chairFoot(a, b, c);
+    if (f < 0.79) return chairBall(-0.30, 0.98, 0.20, 0.135, a, b, c, 0.98, 0.22);
+    if (f < 0.88) return chairRod([-0.28, 0.82, 0.20], [-0.02, 0.42, 0.20], 0.11, a, b, c, 0.90, 0);
+    if (f < 0.93) return chairRod([0.00, 0.42, 0.22], [0.58, 0.38, 0.22], 0.07, a, b, c, 0.84, 0);
+    if (f < 0.96) return chairRod([0.62, 0.38, 0.22], [0.76, -0.22, 0.20], 0.06, a, b, c, 0.82, 0);
+    if (f < 0.98) return chairRod([0.76, -0.22, 0.20], [1.06, -0.34, 0.20], 0.048, a, b, c, 0.88, 0);
+    return chairRod([-0.16, 0.68, 0.28], [0.20, 0.46, 0.30], 0.052, a, b, c, 0.84, 0);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -2617,6 +2730,11 @@
       if (o[4]) out.glow = o[4];
     } else if (kind === 'bionic') {
       o = bionicPoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'wheelchair') {
+      o = chairPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
