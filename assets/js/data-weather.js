@@ -114,7 +114,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair', 'airliner', 'turbine', 'lander', 'rover'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair', 'airliner', 'turbine', 'lander', 'rover', 'defib'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -476,6 +476,10 @@
       /* Side three-quarter: near wheels stay open rings, both lenses face us. */
       rotY(q, 0.50 + 0.035 * Math.sin(t * 0.00013 + seed));
       rotX(q, 0.18);
+    } else if (kind === 'defib') {
+      /* Both paddle faces stay open; the case and its handle sit above them. */
+      rotY(q, 0.12 + 0.035 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.14);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -891,7 +895,7 @@
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1,
     eye: 1, skull: 1, stethoscope: 1, bionic: 1, wheelchair: 1, airliner: 1,
-    turbine: 1, lander: 1, rover: 1
+    turbine: 1, lander: 1, rover: 1, defib: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -3013,6 +3017,145 @@
     return roverLens(f < 0.97 ? 0.16 : 0.38, 0.58, a, b, c);
   }
 
+  /* Defibrillator: two paddle electrodes under a portable case.
+     Each paddle is a filled disc with a fat rim and a handle below it.
+     The case carries its own handle. No cords: a thin arc of dots reads as a line. */
+  var DEFIB_YAW = 0.16;
+
+  function defibPlace(side, lx, ly, lz, cx, cy, cz) {
+    var yaw = side * DEFIB_YAW;
+    var co = Math.cos(yaw);
+    var si = Math.sin(yaw);
+    return [cx + lx * co + lz * si, cy + ly, cz - lx * si + lz * co];
+  }
+
+  function defibDisc(side, a, b, c) {
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rx = 0.27;
+    var ry = 0.25;
+    var lx;
+    var ly;
+    var lz;
+    var e;
+    var glow;
+    var rho;
+    var pol;
+    var tube;
+    if (c < 0.72) {
+      rho = Math.sqrt(a);
+      lx = co * rx * rho;
+      ly = si * ry * rho;
+      lz = 0.055;
+      e = rho > 0.84 ? 0.97 : 0.40 + 0.18 * (1 - rho);
+      glow = rho > 0.84 ? 0.36 : 0;
+    } else if (c < 0.88) {
+      rho = Math.sqrt(a);
+      lx = co * rx * rho * 0.94;
+      ly = si * ry * rho * 0.94;
+      lz = -0.04;
+      e = 0.30;
+      glow = 0;
+    } else {
+      pol = a * 6.2832;
+      tube = 0.046;
+      lx = co * (rx + Math.cos(pol) * tube);
+      ly = si * (ry + Math.cos(pol) * tube);
+      lz = Math.sin(pol) * tube * 0.9;
+      e = lz > 0 ? 0.96 : 0.72;
+      glow = lz > 0 ? 0.2 : 0;
+    }
+    var p = defibPlace(side, lx, ly, lz, side * 0.54, 0.12, 0.16);
+    return [p[0], p[1], p[2], e, glow];
+  }
+
+  function defibHandle(side, a, b, c) {
+    var ang = b * 6.2832;
+    var rad = 0.072 * Math.sqrt(c);
+    var y = -0.06 - a * 0.48;
+    var band = (a > 0.30 && a < 0.44) || (a > 0.60 && a < 0.74);
+    var p = defibPlace(side, Math.cos(ang) * rad, 0, -0.02 + Math.sin(ang) * rad, side * 0.54, y, 0.16);
+    return [p[0], p[1], p[2], band ? 0.94 : 0.46, band ? 0.18 : 0];
+  }
+
+  function defibBody(a, b, c) {
+    var hx = 0.32;
+    var hy = 0.22;
+    var hz = 0.12;
+    var cy = 0.52;
+    var u = a * 2 - 1;
+    var v = b * 2 - 1;
+    var k = Math.max(Math.abs(u), Math.abs(v));
+    var bevel = k > 0.78 ? (k - 0.78) / 0.22 : 0;
+    var su = u * (1 - 0.1 * bevel);
+    var sv = v * (1 - 0.1 * bevel);
+    var x;
+    var y;
+    var z;
+    var e;
+    var glow = 0;
+    if (c < 0.48) {
+      x = su * hx;
+      y = cy + sv * hy;
+      z = hz * (1 - 0.4 * bevel);
+      e = 0.56;
+      if (Math.abs(u) < 0.5 && v > 0.02 && v < 0.58) {
+        e = 0.9;
+        glow = 0.14;
+      }
+    } else if (c < 0.64) {
+      x = su * hx;
+      y = cy + sv * hy;
+      z = -hz * (1 - 0.4 * bevel);
+      e = 0.32;
+    } else if (c < 0.80) {
+      x = (c < 0.72 ? 1 : -1) * hx * (1 - 0.4 * bevel);
+      y = cy + su * hy;
+      z = sv * hz * 0.8;
+      e = 0.42;
+    } else if (c < 0.92) {
+      x = su * hx;
+      y = cy + hy * (1 - 0.28 * bevel);
+      z = sv * hz * 0.8;
+      e = 0.68;
+    } else {
+      x = su * hx;
+      y = cy - hy * (1 - 0.28 * bevel);
+      z = sv * hz * 0.8;
+      e = 0.36;
+    }
+    return [x, y, z, e, glow];
+  }
+
+  function defibArch(a, b, c) {
+    var ang = Math.PI * (1 - a);
+    var R = 0.15;
+    var cy = 0.74;
+    var mx = Math.cos(ang) * R;
+    var my = cy + Math.sin(ang) * R;
+    var rad = 0.048 * Math.sqrt(c);
+    var ph = b * 6.2832;
+    var co = Math.cos(ph);
+    var si = Math.sin(ph);
+    return [
+      mx + co * rad * Math.cos(ang),
+      my + co * rad * Math.sin(ang),
+      si * rad,
+      0.93,
+      0.15
+    ];
+  }
+
+  function defibPoint(f, a, b, c) {
+    if (f < 0.23) return defibDisc(-1, a, b, c);
+    if (f < 0.46) return defibDisc(1, a, b, c);
+    if (f < 0.54) return defibHandle(-1, a, b, c);
+    if (f < 0.62) return defibHandle(1, a, b, c);
+    if (f < 0.90) return defibBody(a, b, c);
+    return defibArch(a, b, c);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -3379,6 +3522,11 @@
       if (o[4]) out.glow = o[4];
     } else if (kind === 'rover') {
       o = roverPoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'defib') {
+      o = defibPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
