@@ -17,7 +17,8 @@
  * binocular microscope, a syringe, a sounding rocket, a radar
  * dish, an eye, a skull, a stethoscope, a bionic hand, a
  * wheelchair, an airliner, a wind turbine, a lunar lander, a
- * Mars rover, a defibrillator, a headset, and an industrial arm), still
+ * Mars rover, a defibrillator, a headset, an industrial arm, and a
+ * metered-dose inhaler), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -114,7 +115,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair', 'airliner', 'turbine', 'lander', 'rover', 'defib', 'headset', 'robot'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair', 'airliner', 'turbine', 'lander', 'rover', 'defib', 'headset', 'robot', 'inhaler'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -488,6 +489,10 @@
       /* Joint faces stay open; the two gripper fingers stay apart. */
       rotY(q, 0.38 + 0.035 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.24);
+    } else if (kind === 'inhaler') {
+      /* Nearly frontal, so the oval mouth stays a hole and the canister stays upright. */
+      rotY(q, 0.18 + 0.03 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.14);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -903,7 +908,7 @@
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1,
     eye: 1, skull: 1, stethoscope: 1, bionic: 1, wheelchair: 1, airliner: 1,
-    turbine: 1, lander: 1, rover: 1, defib: 1, headset: 1, robot: 1
+    turbine: 1, lander: 1, rover: 1, defib: 1, headset: 1, robot: 1, inhaler: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -3578,6 +3583,178 @@
     return robotCube(a, b, c);
   }
 
+  /* Metered-dose inhaler. A metal canister seated in a wider boot,
+     with an oval mouth open toward the viewer. The mouth is a hole
+     with a fat rim; nothing sits behind it. Mean camera rotY(0.18), rotX(0.14). */
+  var IH_LIT = [0.18, 0.42, 0.90];
+  var IH_CR = 0.155;
+  var IH_CY0 = 0.10;
+  var IH_CY1 = 0.68;
+  var IH_HX = 0.40;
+  var IH_Y0 = -0.38;
+  var IH_Y1 = 0.16;
+  var IH_Z1 = 0.18;
+  var IH_MY = -0.12;
+  var IH_MRX = 0.25;
+  var IH_MRY = 0.155;
+  var IH_MZ0 = 0.16;
+  var IH_MZ1 = 0.40;
+
+  function ihShade(nx, ny, nz) {
+    var l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    var d = (nx * IH_LIT[0] + ny * IH_LIT[1] + nz * IH_LIT[2]) / l;
+    if (d < 0) d = 0;
+    return 0.30 + 0.44 * d;
+  }
+
+  function ihClamp(x, y, hx, hy, rad) {
+    var cx = Math.max(-hx + rad, Math.min(hx - rad, x));
+    var cy = Math.max(-hy + rad, Math.min(hy - rad, y));
+    var dx = x - cx;
+    var dy = y - cy;
+    var h = Math.sqrt(dx * dx + dy * dy);
+    if (h > rad) {
+      x = cx + dx / h * rad;
+      y = cy + dy / h * rad;
+    }
+    return [x, y];
+  }
+
+  function ihCan(a, b, c) {
+    var y = IH_CY0 + a * (IH_CY1 - IH_CY0);
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rho = IH_CR * (0.97 + 0.03 * c);
+    var e = ihShade(si, 0, co) + 0.05;
+    var glow = 0;
+    if (y > 0.46 && y < 0.56 && co > 0.2) {
+      e = 0.93;
+      glow = 0.18;
+    }
+    return [si * rho, y, co * rho, e, glow];
+  }
+
+  function ihDome(a, b) {
+    var pol = a * 1.5708;
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var cp = Math.cos(pol);
+    var sp = Math.sin(pol);
+    var e = ihShade(si * cp, sp, co * cp) + 0.05;
+    var glow = 0;
+    if (pol > 1.15) {
+      e = 0.97;
+      glow = 0.32;
+    }
+    return [si * IH_CR * cp, IH_CY1 + IH_CR * sp, co * IH_CR * cp, e, glow];
+  }
+
+  function ihRing(a, b) {
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rho = IH_CR * (1.04 + 0.06 * a);
+    var e = 0.78 + 0.2 * Math.max(0, co);
+    return [si * rho, IH_CY1 - 0.03 + a * 0.05, co * rho, e, co > 0.3 ? 0.24 : 0];
+  }
+
+  function ihFront(a, b) {
+    var cy = (IH_Y0 + IH_Y1) * 0.5;
+    var hy = (IH_Y1 - IH_Y0) * 0.5;
+    var x = (a * 2 - 1) * IH_HX;
+    var y = cy + (b * 2 - 1) * hy;
+    var q = ihClamp(x, y - cy, IH_HX, hy, 0.11);
+    var z = IH_Z1;
+    var e = ihShade(0, 0, 1);
+    var glow = 0;
+    var m;
+    x = q[0];
+    y = q[1] + cy;
+    m = (x * x) / (IH_MRX * IH_MRX) + ((y - IH_MY) * (y - IH_MY)) / (IH_MRY * IH_MRY);
+    if (m < 1) {
+      m = Math.sqrt(m) || 0.001;
+      x /= m;
+      y = IH_MY + (y - IH_MY) / m;
+      z = IH_Z1 + 0.02;
+      e = 0.95;
+      glow = 0.25;
+    }
+    return [x, y, z, e, glow];
+  }
+
+  function ihTop(a, b) {
+    var x = (a * 2 - 1) * IH_HX;
+    var z = (b * 2 - 1) * 0.16;
+    var q = ihClamp(x, z, IH_HX, 0.16, 0.09);
+    var y = IH_Y1;
+    var e = ihShade(0, 1, 0.15);
+    var glow = 0;
+    var rad;
+    var m;
+    x = q[0];
+    z = q[1];
+    rad = Math.sqrt(x * x + z * z);
+    if (rad < IH_CR + 0.015) {
+      m = (IH_CR + 0.02) / Math.max(0.001, rad);
+      x *= m;
+      z *= m;
+      y = IH_Y1 + 0.018;
+      e = 0.95;
+      glow = 0.22;
+    }
+    return [x, y, z, e, glow];
+  }
+
+  function ihMouth(a, b, c) {
+    var t = a;
+    var z = IH_MZ0 + (IH_MZ1 - IH_MZ0) * t;
+    var rx = IH_MRX + t * 0.02;
+    var ry = IH_MRY + t * 0.012;
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rf = 0.84 + 0.16 * c;
+    var e = ihShade(si, co * 0.8, 0.35);
+    if (t > 0.72) e += 0.18;
+    return [si * rx * rf, IH_MY + co * ry * rf, z, e, 0];
+  }
+
+  function ihLip(a, b) {
+    var ang = a * 6.2832;
+    var pol = b * 3.1416;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var cp = Math.cos(pol);
+    var sp = Math.sin(pol);
+    var rx = IH_MRX + 0.028;
+    var ry = IH_MRY + 0.02;
+    var tube = 0.058;
+    var nx = si / rx;
+    var ny = co / ry;
+    var nl = Math.sqrt(nx * nx + ny * ny) || 1;
+    nx /= nl;
+    ny /= nl;
+    return [
+      si * rx + tube * cp * nx,
+      IH_MY + co * ry + tube * cp * ny,
+      IH_MZ1 + tube * sp,
+      0.58 + 0.4 * sp,
+      sp > 0.4 ? 0.4 : 0
+    ];
+  }
+
+  function inhalerPoint(f, a, b, c) {
+    if (f < 0.28) return ihCan(a, b, c);
+    if (f < 0.36) return ihDome(a, b);
+    if (f < 0.42) return ihRing(a, b);
+    if (f < 0.68) return ihFront(a, b);
+    if (f < 0.78) return ihTop(a, b);
+    if (f < 0.86) return ihMouth(a, b, c);
+    return ihLip(a, b);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -3959,6 +4136,11 @@
       if (o[4]) out.glow = o[4];
     } else if (kind === 'robot') {
       o = robotPoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+    } else if (kind === 'inhaler') {
+      o = inhalerPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
