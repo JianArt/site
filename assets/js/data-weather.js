@@ -17,8 +17,8 @@
  * binocular microscope, a syringe, a sounding rocket, a radar
  * dish, an eye, a skull, a stethoscope, a bionic hand, a
  * wheelchair, an airliner, a wind turbine, a lunar lander, a
- * Mars rover, a defibrillator, a headset, an industrial arm, and a
- * metered-dose inhaler), still
+ * Mars rover, a defibrillator, a headset, an industrial arm, a
+ * metered-dose inhaler, and a benchtop centrifuge), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -115,7 +115,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair', 'airliner', 'turbine', 'lander', 'rover', 'defib', 'headset', 'robot', 'inhaler'];
+  var LAB_NAMES = ['molar', 'mri', 'flask', 'microscope', 'syringe', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair', 'airliner', 'turbine', 'lander', 'rover', 'defib', 'headset', 'robot', 'inhaler', 'centrifuge'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -493,6 +493,10 @@
       /* Nearly frontal, so the oval mouth stays a hole and the canister stays upright. */
       rotY(q, 0.18 + 0.03 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.14);
+    } else if (kind === 'centrifuge') {
+      /* High enough to see the rotor, low enough that the open lid stays a disc. */
+      rotY(q, 0.48 + 0.035 * Math.sin(t * 0.00014 + seed));
+      rotX(q, 0.58);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -908,7 +912,8 @@
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     molar: 1, mri: 1, flask: 1, microscope: 1, syringe: 1, rocket: 1, radar: 1,
     eye: 1, skull: 1, stethoscope: 1, bionic: 1, wheelchair: 1, airliner: 1,
-    turbine: 1, lander: 1, rover: 1, defib: 1, headset: 1, robot: 1, inhaler: 1
+    turbine: 1, lander: 1, rover: 1, defib: 1, headset: 1, robot: 1, inhaler: 1,
+    centrifuge: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -3755,6 +3760,246 @@
     return ihLip(a, b);
   }
 
+  /* Benchtop centrifuge, lid open. Six capped tubes sit in a fixed-angle
+     rotor; FUGE_SPIN walks that pose back to the built one at the 13s mark
+     of the first hold. Tubes are shells, caps are filled knobs. */
+  var FUGE_RO = 0.62;
+  var FUGE_RI = 0.46;
+  var FUGE_YB = -0.46;
+  var FUGE_YR = 0.02;
+  var FUGE_YF = -0.20;
+  var FUGE_OPEN = 1.18;
+  var FUGE_SPIN = 0.00032;
+  var FUGE_PHASE = 7400 * 0.00032;
+
+  function fugeShade(nx, ny, nz) {
+    var d = nx * 0.2 + ny * 0.74 + nz * 0.46;
+    if (d < 0) d = 0;
+    return 0.26 + 0.5 * d;
+  }
+
+  function fugeLift(lx, ly, lz) {
+    var s = Math.sin(FUGE_OPEN);
+    var c = Math.cos(FUGE_OPEN);
+    return [lx, FUGE_YR + ly * c + lz * s, -FUGE_RO - ly * s + lz * c];
+  }
+
+  function fugeOuter(a, b, c) {
+    var y = FUGE_YB + a * (FUGE_YR - FUGE_YB);
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var flare = 1 + 0.1 * (1 - a) * (1 - a);
+    var rho = FUGE_RO * flare * (0.975 + 0.025 * c);
+    return [co * rho, y, si * rho, fugeShade(co, 0.12, si), 0, 0];
+  }
+
+  function fugeInner(a, b, c) {
+    var y = FUGE_YF + 0.03 + a * (FUGE_YR - FUGE_YF - 0.02);
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rho = FUGE_RI * (0.97 + 0.03 * c);
+    return [co * rho, y, si * rho, fugeShade(-co, 0, -si) * 0.85, 0, 0];
+  }
+
+  function fugeFloor(a, b) {
+    var ang = b * 6.2832;
+    var r = Math.sqrt(a) * (FUGE_RI - 0.02);
+    return [Math.cos(ang) * r, FUGE_YF, Math.sin(ang) * r, 0.3, 0, 0];
+  }
+
+  function fugeRim(a, b) {
+    var ang = a * 6.2832;
+    var pol = b * 6.2832;
+    var mid = (FUGE_RO + FUGE_RI) * 0.5;
+    var tube = (FUGE_RO - FUGE_RI) * 0.58;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var cp = Math.cos(pol);
+    var sp = Math.sin(pol);
+    var e = fugeShade(co * cp, sp, si * cp);
+    var glow = 0;
+    if (sp > 0.4) {
+      e = Math.max(e, 0.84);
+      glow = 0.22;
+    }
+    return [co * (mid + tube * cp), FUGE_YR + sp * tube * 0.7, si * (mid + tube * cp), e, glow, 0];
+  }
+
+  function fugeBase(a, b) {
+    var ang = a * 6.2832;
+    var pol = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var cp = Math.cos(pol);
+    var sp = Math.sin(pol);
+    var R = FUGE_RO * 1.04;
+    var tube = 0.05;
+    return [
+      co * (R + tube * cp),
+      FUGE_YB - 0.01 + sp * tube * 0.6,
+      si * (R + tube * cp),
+      fugeShade(co * cp, sp, si * cp),
+      0,
+      0
+    ];
+  }
+
+  function fugeLid(a, b, c) {
+    var ang = a * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rad;
+    var ly;
+    var e;
+    var glow = 0;
+    if (b < 0.18) {
+      rad = 0.22 + (b / 0.18) * 0.06;
+      ly = (c - 0.5) * 0.04;
+      e = 0.97;
+      glow = 0.3;
+    } else if (b > 0.84) {
+      rad = FUGE_RO * (0.86 + (b - 0.84) / 0.16 * 0.16);
+      ly = (c - 0.5) * 0.07;
+      e = 0.9;
+      glow = 0.12;
+    } else {
+      rad = 0.3 + (b - 0.18) / 0.66 * (FUGE_RO * 0.82 - 0.3);
+      ly = c < 0.5 ? -0.03 : 0.03;
+      e = c < 0.5 ? 0.5 : 0.74;
+    }
+    var p = fugeLift(co * rad, ly, FUGE_RO + si * rad);
+    return [p[0], p[1], p[2], e, glow, 0];
+  }
+
+  function fugeHandle(a, b) {
+    var ang = b * 6.2832;
+    var p = fugeLift(
+      (a - 0.5) * 0.3,
+      0.02 + Math.cos(ang) * 0.04,
+      FUGE_RO * 2 - 0.02 + Math.sin(ang) * 0.04
+    );
+    return [p[0], p[1], p[2], 0.92, 0.28, 0];
+  }
+
+  function fugeHinge(a, b) {
+    var ang = b * 6.2832;
+    var rad = 0.09;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    return [
+      (a - 0.5) * 0.58,
+      FUGE_YR + si * rad,
+      -FUGE_RO + co * rad,
+      0.78,
+      si > 0.4 ? 0.15 : 0,
+      0
+    ];
+  }
+
+  function fugeHub(a, b, c) {
+    var y = -0.14 + a * 0.18;
+    var ang = b * 6.2832;
+    var R = a > 0.8 ? 0.15 : 0.1;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rho = c > 0.45 ? R * (0.9 + 0.1 * c) : Math.sqrt(c / 0.45) * R;
+    var e = c > 0.45 ? fugeShade(co, 0.25, si) : 0.5;
+    if (a > 0.8) e = Math.max(e, 0.72);
+    return [co * rho, y, si * rho, e, 0, 1];
+  }
+
+  function fugeTube(cap, a, b, c) {
+    var slot = Math.floor(a * 6);
+    var t = a * 6 - slot;
+    var th = (slot % 6) / 6 * 6.2832 + 1.5708;
+    var lean = 0.6;
+    var ax = Math.sin(lean) * Math.cos(th);
+    var ay = Math.cos(lean);
+    var az = Math.sin(lean) * Math.sin(th);
+    var along = cap ? 0.8 + t * 0.2 : t * 0.82;
+    var len = 0.42;
+    var rad = cap ? 0.07 * (0.45 + 0.55 * Math.sqrt(c)) : 0.064 * (0.88 + 0.12 * c);
+    var ux = 0;
+    var uy = 0;
+    var uz = 1;
+    if (az * az > 0.8) {
+      ux = 1;
+      uz = 0;
+    }
+    var nx = ay * uz - az * uy;
+    var ny = az * ux - ax * uz;
+    var nz = ax * uy - ay * ux;
+    var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    nx /= nl;
+    ny /= nl;
+    nz /= nl;
+    var bx = ay * nz - az * ny;
+    var by = az * nx - ax * nz;
+    var bz = ax * ny - ay * nx;
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var rx = co * nx + si * bx;
+    var ry = co * ny + si * by;
+    var rz = co * nz + si * bz;
+    return [
+      Math.cos(th) * 0.1 + ax * len * along + rx * rad,
+      -0.06 + ay * len * along + ry * rad,
+      Math.sin(th) * 0.1 + az * len * along + rz * rad,
+      cap ? 0.96 : Math.max(0.48, fugeShade(rx, ry, rz)),
+      cap ? 0.18 : 0,
+      1
+    ];
+  }
+
+  function fugePanel(a, b, c) {
+    var x = (a - 0.5) * 0.62;
+    var y = -0.44 + b * 0.32;
+    var z = FUGE_RO * 0.9 + (c < 0.62 ? 0.02 : 0.06);
+    var e = 0.46;
+    var glow = 0;
+    if (Math.abs(x) < 0.16 && y > -0.4 && y < -0.24) {
+      e = 0.94;
+      glow = 0.4;
+      z += 0.01;
+    }
+    return [x, y, z, e, glow, 0];
+  }
+
+  function fugeKnob(a, b) {
+    var phi = Math.acos(Math.max(-1, Math.min(1, 2 * a - 1)));
+    var ang = b * 6.2832;
+    var r = 0.064;
+    var s = Math.sin(phi);
+    var face = Math.sin(ang);
+    return [
+      0.34 + s * Math.cos(ang) * r,
+      -0.31 + Math.cos(phi) * r,
+      FUGE_RO + 0.02 + s * face * r,
+      face > 0.15 ? 0.92 : 0.58,
+      face > 0.4 ? 0.32 : 0,
+      0
+    ];
+  }
+
+  function fugePoint(f, a, b, c) {
+    if (f < 0.16) return fugeOuter(a, b, c);
+    if (f < 0.22) return fugeInner(a, b, c);
+    if (f < 0.27) return fugeFloor(a, b);
+    if (f < 0.35) return fugeRim(a, b);
+    if (f < 0.38) return fugeBase(a, b);
+    if (f < 0.58) return fugeLid(a, b, c);
+    if (f < 0.61) return fugeHandle(a, b);
+    if (f < 0.67) return fugeHinge(a, b);
+    if (f < 0.72) return fugeHub(a, b, c);
+    if (f < 0.88) return fugeTube(false, a, b, c);
+    if (f < 0.93) return fugeTube(true, a, b, c);
+    if (f < 0.98) return fugePanel(a, b, c);
+    return fugeKnob(a, b);
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -4144,6 +4389,12 @@
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
+    } else if (kind === 'centrifuge') {
+      o = fugePoint(f, a, b, c);
+      p = [o[0], o[1], o[2]];
+      e = o[3];
+      if (o[4]) out.glow = o[4];
+      if (o[5]) out.mv = 'fuge';
     } else if (kind === 'molecule') {
       o = pickAcc(MOLECULE.atoms, a * MOLECULE.total);
       p = shell([o.x, o.y, o.z], o.r, dir);
@@ -4428,6 +4679,22 @@
         x: sp.hx + x1 * co - y1 * si,
         y: sp.hy + x1 * si + y1 * co,
         z: sp.z,
+        e: sp.e,
+        th: -9,
+        r: sp.r,
+        glow: sp.glow || 0
+      };
+    }
+    if (sp.mv === 'fuge') {
+      ang = stage.time * FUGE_SPIN - FUGE_PHASE;
+      co = Math.cos(ang);
+      si = Math.sin(ang);
+      x1 = sp.x;
+      y1 = sp.z;
+      return {
+        x: x1 * co - y1 * si,
+        y: sp.y,
+        z: x1 * si + y1 * co,
         e: sp.e,
         th: -9,
         r: sp.r,
