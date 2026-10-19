@@ -13,9 +13,7 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- *   ?shape=, currently a sounding rocket,
- *
- * and an industrial arm), still
+ *   ?shape=, currently a sounding rocket), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -112,7 +110,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['rocket', 'robot'];
+  var LAB_NAMES = ['rocket'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -414,10 +412,6 @@
       /* Nose up. Two fins present their faces; the third stays behind the body. */
       rotY(q, 0.48 + 0.05 * Math.sin(t * 0.00013 + seed));
       rotX(q, 0.18);
-    } else if (kind === 'robot') {
-      /* Joint faces stay open; the two gripper fingers stay apart. */
-      rotY(q, 0.38 + 0.035 * Math.sin(t * 0.00014 + seed));
-      rotX(q, 0.24);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -831,8 +825,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    rocket: 1,
-    robot: 1
+    rocket: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1243,180 +1236,6 @@
     return rocketNozzle(a, b, c);
   }
 
-  /* Industrial arm. A wide base, two joint discs bigger than the links,
-     and a parallel gripper around a small block. Discs face the viewer.
-     Links are thick tubes, never wires. Mean camera rotY(0.38), rotX(0.24). */
-  var RB_LIT = [0.28, 0.64, 0.68];
-  var RB_X = -0.95;
-  var RB_SH = [-0.95, -0.10, 0];
-  var RB_EL = [-0.02, 0.50, 0.05];
-  var RB_WR = [0.72, -0.06, 0.12];
-
-  function robotShade(nx, ny, nz) {
-    var l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    var d = (nx * RB_LIT[0] + ny * RB_LIT[1] + nz * RB_LIT[2]) / l;
-    if (d < 0) d = 0;
-    return 0.30 + 0.42 * d;
-  }
-
-  function robotBasis(tx, ty, tz) {
-    var ux = 0;
-    var uy = 0;
-    var uz = 1;
-    if (tz * tz > 0.72) {
-      uy = 1;
-      uz = 0;
-    }
-    var nx = ty * uz - tz * uy;
-    var ny = tz * ux - tx * uz;
-    var nz = tx * uy - ty * ux;
-    var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    nx /= nl;
-    ny /= nl;
-    nz /= nl;
-    return [nx, ny, nz, ty * nz - tz * ny, tz * nx - tx * nz, tx * ny - ty * nx];
-  }
-
-  function robotTube(p0, p1, rad, a, b, c) {
-    var dx = p1[0] - p0[0];
-    var dy = p1[1] - p0[1];
-    var dz = p1[2] - p0[2];
-    var len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-    var B = robotBasis(dx / len, dy / len, dz / len);
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var rho = rad * (0.78 + 0.22 * c);
-    var nx = co * B[0] + si * B[3];
-    var ny = co * B[1] + si * B[4];
-    var nz = co * B[2] + si * B[5];
-    return [
-      p0[0] + dx * a + nx * rho,
-      p0[1] + dy * a + ny * rho,
-      p0[2] + dz * a + nz * rho,
-      robotShade(nx, ny, nz),
-      0
-    ];
-  }
-
-  function robotDisc(c0, r, halfT, a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var e;
-    if (c < 0.36) {
-      return [
-        c0[0] + co * r,
-        c0[1] + si * r,
-        c0[2] + (a * 2 - 1) * halfT,
-        robotShade(co, si, 0),
-        0
-      ];
-    }
-    var front = c < 0.68;
-    var rho = Math.sqrt(a) * r * 0.98;
-    e = robotShade(0, 0.15, front ? 1 : -0.55);
-    if (rho < r * 0.26) e = 0.24;
-    else if (rho > r * 0.86) e = Math.min(0.66, e + 0.12);
-    return [c0[0] + co * rho, c0[1] + si * rho, c0[2] + (front ? halfT : -halfT), e, 0];
-  }
-
-  function robotFlange(a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var r = 0.28;
-    var y0 = -0.68;
-    var y1 = -0.54;
-    var rho;
-    if (c < 0.34) {
-      return [RB_X + co * r, y0 + a * (y1 - y0), si * r, robotShade(co, 0, si), 0];
-    }
-    rho = Math.sqrt(a) * r;
-    if (c < 0.78) return [RB_X + co * rho, y1, si * rho, robotShade(0, 1, 0), 0];
-    return [RB_X + co * rho, y0, si * rho, robotShade(0, -1, 0), 0];
-  }
-
-  function robotColumn(a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var k = 1.15 - 0.22 * a;
-    var rho = 0.12 * k * (0.8 + 0.2 * c);
-    var y = -0.54 + a * 0.28;
-    return [RB_X + co * rho, y, si * rho, robotShade(co, 0.15, si), 0];
-  }
-
-  function robotFinger(x, a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var pad = a > 0.74 ? 1 + (a - 0.74) * 1.35 : 1;
-    var rad = 0.05 * (0.84 + 0.16 * c) * pad;
-    var y = -0.20 - a * 0.38;
-    return [x + co * rad, y, RB_WR[2] + si * rad, robotShade(co, -0.1, si), 0];
-  }
-
-  function robotCube(a, b, c) {
-    var h = 0.068;
-    var face = Math.floor(c * 6);
-    var u = (a * 2 - 1) * h;
-    var v = (b * 2 - 1) * h;
-    var x = RB_WR[0];
-    var y = -0.38;
-    var z = RB_WR[2];
-    var nx = 0;
-    var ny = 0;
-    var nz = 0;
-    if (face === 0) {
-      z += h;
-      x += u;
-      y += v;
-      nz = 1;
-    } else if (face === 1) {
-      z -= h;
-      x += u;
-      y += v;
-      nz = -1;
-    } else if (face === 2) {
-      x += h;
-      y += u;
-      z += v;
-      nx = 1;
-    } else if (face === 3) {
-      x -= h;
-      y += u;
-      z += v;
-      nx = -1;
-    } else if (face === 4) {
-      y += h;
-      x += u;
-      z += v;
-      ny = 1;
-    } else {
-      y -= h;
-      x += u;
-      z += v;
-      ny = -1;
-    }
-    return [x, y, z, Math.min(0.98, robotShade(nx, ny, nz) + 0.48), 0.42];
-  }
-
-  function robotPoint(f, a, b, c) {
-    if (f < 0.11) return robotFlange(a, b, c);
-    if (f < 0.16) return robotColumn(a, b, c);
-    if (f < 0.29) return robotDisc(RB_SH, 0.20, 0.09, a, b, c);
-    if (f < 0.43) return robotTube(RB_SH, RB_EL, 0.07, a, b, c);
-    if (f < 0.55) return robotDisc(RB_EL, 0.165, 0.08, a, b, c);
-    if (f < 0.66) return robotTube(RB_EL, RB_WR, 0.058, a, b, c);
-    if (f < 0.74) return robotDisc(RB_WR, 0.11, 0.062, a, b, c);
-    if (f < 0.77) return robotTube(RB_WR, [RB_WR[0], -0.20, RB_WR[2]], 0.052, a, b, c);
-    if (f < 0.83) return robotTube([0.52, -0.20, RB_WR[2]], [0.92, -0.20, RB_WR[2]], 0.055, a, b, c);
-    if (f < 0.90) return robotFinger(0.56, a, b, c);
-    if (f < 0.97) return robotFinger(0.88, a, b, c);
-    return robotCube(a, b, c);
-  }
-
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1697,11 +1516,6 @@
         p = [o.x, o.y, o.z];
         e = o.e;
       }
-    } else if (kind === 'robot') {
-      o = robotPoint(f, a, b, c);
-      p = [o[0], o[1], o[2]];
-      e = o[3];
-      if (o[4]) out.glow = o[4];
     } else if (kind === 'molecule') {
       o = pickAcc(MOLECULE.atoms, a * MOLECULE.total);
       p = shell([o.x, o.y, o.z], o.r, dir);
