@@ -13,7 +13,7 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- *   ?shape=, currently a sounding rocket, an eye, an airliner,
+ *   ?shape=, currently a sounding rocket, an eye,
  * a lunar lander, a Mars rover, a defibrillator,
  * a headset, and an industrial arm), still
  * breathing, then return
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['rocket', 'eye', 'airliner', 'lander', 'rover', 'defib', 'headset', 'robot'];
+  var LAB_NAMES = ['rocket', 'eye', 'lander', 'rover', 'defib', 'headset', 'robot'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -418,10 +418,6 @@
       /* Near-frontal, so the pupil stays a hole and the lids keep their arch. */
       rotY(q, 0.28 + 0.04 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.1);
-    } else if (kind === 'airliner') {
-      /* Above and ahead of the nose: both wings, the fin, and the near intake. */
-      rotY(q, 0.55 + 0.04 * Math.sin(t * 0.00013 + seed));
-      rotX(q, 0.46);
     } else if (kind === 'lander') {
       /* Above the deck: both near pads, the visor, and the bell between them. */
       rotY(q, 0.58 + 0.035 * Math.sin(t * 0.00013 + seed));
@@ -856,8 +852,7 @@
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     rocket: 1,
-    eye: 1, airliner: 1,
-    lander: 1, rover: 1, defib: 1, headset: 1, robot: 1
+    eye: 1, lander: 1, rover: 1, defib: 1, headset: 1, robot: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1377,161 +1372,6 @@
     if (f < 0.69) return eyeGlint(a, b);
     if (f < 0.88) return eyeUpper(a, b, c);
     return eyeLower(a, b, c);
-  }
-
-  /* Passenger jet, nose along +z. Wings are filled swept slabs, engines are
-     short tubes with an open intake, and the fin is a volume. No window
-     row: a line of beads would read as a stroke. Mean camera rotY(0.55),
-     rotX(0.46). */
-  var JET_LIT = [0.22, 0.74, 0.58];
-  var JET_NOSE = 0.78;
-  var JET_TAIL = -0.82;
-
-  function jetShade(nx, ny, nz) {
-    var l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    var d = (nx * JET_LIT[0] + ny * JET_LIT[1] + nz * JET_LIT[2]) / l;
-    if (d < 0) d = 0;
-    return 0.30 + 0.56 * d * d;
-  }
-
-  function jetRad(z) {
-    var r = 0.125;
-    var t;
-    if (z > 0.46) {
-      t = (JET_NOSE - z) / (JET_NOSE - 0.46);
-      if (t < 0) t = 0;
-      return r * Math.pow(t, 0.52);
-    }
-    if (z < -0.42) {
-      t = (z - JET_TAIL) / (-0.42 - JET_TAIL);
-      if (t < 0) t = 0;
-      return r * (0.16 + 0.84 * Math.pow(t, 0.72));
-    }
-    return r;
-  }
-
-  function jetFuse(a, b, c) {
-    var z = JET_TAIL + a * (JET_NOSE - JET_TAIL);
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var rad = jetRad(z);
-    var rho = rad * (0.9 + 0.1 * c);
-    var nz = z > 0.46 ? 0.9 : z < -0.42 ? -0.7 : 0;
-    var e = jetShade(co, si, nz);
-    var glow = 0;
-    if (z > 0.48 && z < 0.63 && si > 0.45 && Math.abs(co) < 0.48) {
-      e = 0.97;
-      glow = 0.42;
-    }
-    return [co * rho, si * rho, z, e, glow];
-  }
-
-  function jetWing(side, a, b, c) {
-    var span = a;
-    var chord = b;
-    var top = c < 0.64;
-    var spanX = 0.08 + span * 0.88;
-    var chordLen = 0.48 * (1 - span * 0.66);
-    var zLead = 0.20 - span * 0.44;
-    var z = zLead - chord * chordLen;
-    var thick = 0.028 * (1 - span * 0.5);
-    var y = -0.02 + span * span * 0.08;
-    var edge = 1;
-    if (chord < 0.12) edge = chord / 0.12;
-    else if (chord > 0.9) edge = (1 - chord) / 0.1;
-    y += (top ? 1 : -1) * thick * Math.sin(Math.max(0, edge) * 1.5708);
-    var e = top ? jetShade(0, 1, 0.15) : jetShade(0, -1, 0);
-    var glow = 0;
-    if (top && span > 0.93) {
-      e = 0.94;
-      glow = 0.22;
-    }
-    return [side * spanX, y, z, e, glow];
-  }
-
-  function jetEngine(side, a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var R = 0.088;
-    var hole = 0.046;
-    var z0 = 0.14;
-    var z1 = -0.20;
-    var cy = -0.15;
-    var cx = side * 0.38;
-    var z;
-    var rho;
-    var e;
-    var glow = 0;
-    if (c < 0.16 && a > 0.28 && a < 0.82) {
-      return [
-        cx + (c / 0.16 - 0.5) * 0.04,
-        cy + 0.04 + (a - 0.28) / 0.54 * 0.10,
-        -0.02 - b * 0.16,
-        0.46,
-        0
-      ];
-    }
-    if (a < 0.22) {
-      rho = hole + Math.sqrt(a / 0.22) * (R + 0.01 - hole);
-      z = z0;
-      e = rho > R * 0.9 ? 0.97 : 0.55;
-      glow = rho > R * 0.9 ? 0.38 : 0;
-    } else {
-      z = z0 + (a - 0.22) / 0.78 * (z1 - z0);
-      rho = R * (0.88 + 0.12 * c);
-      e = jetShade(co, si, a > 0.9 ? -0.4 : 0);
-    }
-    return [cx + co * rho, cy + si * rho, z, e, glow];
-  }
-
-  function jetFin(a, b, c) {
-    var h = a;
-    var chord = b;
-    var y = 0.02 + h * 0.50;
-    var chordLen = 0.36 * (1 - h * 0.55);
-    var z = -0.40 - h * 0.32 - chord * chordLen;
-    var x = (c - 0.5) * 0.034 * (1 - 0.45 * h);
-    var e = c < 0.5 ? 0.42 : 0.66;
-    var glow = 0;
-    if (h > 0.8) {
-      e = 0.96;
-      glow = 0.32;
-    }
-    return [x, y, z, e, glow];
-  }
-
-  function jetStab(side, a, b, c) {
-    var span = a;
-    var chord = b;
-    var top = c < 0.6;
-    var x = side * (0.07 + span * 0.34);
-    var chordLen = 0.22 * (1 - span * 0.4);
-    var z = -0.50 - span * 0.08 - chord * chordLen;
-    var y = 0.03 + (top ? 0.016 : -0.016);
-    return [x, y, z, top ? 0.6 : 0.36, 0];
-  }
-
-  function jetWinglet(side, a, b, c) {
-    var h = a;
-    var y = 0.05 + h * 0.15;
-    var z = -0.26 - h * 0.06 - b * 0.10 * (1 - h * 0.25);
-    var x = side * 0.955 + side * (c - 0.5) * 0.02;
-    var e = h > 0.72 ? 0.95 : 0.58;
-    return [x, y, z, e, h > 0.72 ? 0.24 : 0];
-  }
-
-  function jetPoint(f, a, b, c) {
-    if (f < 0.18) return jetFuse(a, b, c);
-    if (f < 0.36) return jetWing(-1, a, b, c);
-    if (f < 0.54) return jetWing(1, a, b, c);
-    if (f < 0.64) return jetEngine(-1, a, b, c);
-    if (f < 0.74) return jetEngine(1, a, b, c);
-    if (f < 0.86) return jetFin(a, b, c);
-    if (f < 0.91) return jetStab(-1, a, b, c);
-    if (f < 0.96) return jetStab(1, a, b, c);
-    return jetWinglet(f < 0.98 ? -1 : 1, a, b, c);
   }
 
   /* Lunar lander. Gold octagonal descent stage, cream cabin with an open
@@ -2719,11 +2559,6 @@
       }
     } else if (kind === 'eye') {
       o = eyePoint(f, a, b, c, id);
-      p = [o[0], o[1], o[2]];
-      e = o[3];
-      if (o[4]) out.glow = o[4];
-    } else if (kind === 'airliner') {
-      o = jetPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
