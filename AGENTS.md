@@ -49,7 +49,7 @@ at the edges of a moving stream.
   cell that does not depend on time belongs in `buildCells()`.
 - Rejected ideas; do not bring them back: stacked ridge layers, particle hover or
   gusts, morphing into a sparkline, polar spiderweb charts, a virus, a spiral
-  galaxy, a drone swarm, globe columns, a centrifuge, a molar, a syringe, an MRI gantry, a microscope, a skull, a bionic hand, a radar dish, a wheelchair, a stethoscope, a wind turbine, a passenger jet, a lunar lander, a Mars rover, an eye, a defibrillator.
+  galaxy, a drone swarm, globe columns, a centrifuge, a molar, a syringe, an MRI gantry, a microscope, a skull, a bionic hand, a radar dish, a wheelchair, a stethoscope, a wind turbine, a passenger jet, a lunar lander, a Mars rover, an eye, a defibrillator, a VR headset.
 
 ### Checking a shape
 
