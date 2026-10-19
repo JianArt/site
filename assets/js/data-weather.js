@@ -14,7 +14,7 @@
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
  *   ?shape=, currently a sounding rocket, an eye, an airliner,
- * a wind turbine, a lunar lander, a Mars rover, a defibrillator,
+ * a lunar lander, a Mars rover, a defibrillator,
  * a headset, and an industrial arm), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['rocket', 'eye', 'airliner', 'turbine', 'lander', 'rover', 'defib', 'headset', 'robot'];
+  var LAB_NAMES = ['rocket', 'eye', 'airliner', 'lander', 'rover', 'defib', 'headset', 'robot'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -422,10 +422,6 @@
       /* Above and ahead of the nose: both wings, the fin, and the near intake. */
       rotY(q, 0.55 + 0.04 * Math.sin(t * 0.00013 + seed));
       rotX(q, 0.46);
-    } else if (kind === 'turbine') {
-      /* Rotor open to the viewer, nacelle long enough to read behind it. */
-      rotY(q, 0.50 + 0.035 * Math.sin(t * 0.00013 + seed));
-      rotX(q, 0.14);
     } else if (kind === 'lander') {
       /* Above the deck: both near pads, the visor, and the bell between them. */
       rotY(q, 0.58 + 0.035 * Math.sin(t * 0.00013 + seed));
@@ -861,7 +857,7 @@
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     rocket: 1,
     eye: 1, airliner: 1,
-    turbine: 1, lander: 1, rover: 1, defib: 1, headset: 1, robot: 1
+    lander: 1, rover: 1, defib: 1, headset: 1, robot: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1536,102 +1532,6 @@
     if (f < 0.91) return jetStab(-1, a, b, c);
     if (f < 0.96) return jetStab(1, a, b, c);
     return jetWinglet(f < 0.98 ? -1 : 1, a, b, c);
-  }
-
-  /* Wind turbine. Blades are filled airfoil slabs, not centerlines.
-     Hub at the rotor, nacelle runs back along -z, tower drops from it.
-     One blade is built straight up; TURBINE_SPIN walks that pose back
-     to vertical at the 13s mark of the first hold (three-fold symmetry). */
-  var TURBINE_HUB = [0, 0.08, 0.16];
-  var TURBINE_SPIN = 0.0005661;
-
-  function turbineLit(nx, ny, nz) {
-    var d = nx * 0.15 + ny * 0.55 + nz * 0.72;
-    if (d < 0) d = 0;
-    return 0.30 + 0.42 * d;
-  }
-
-  function turbineBall(cx, cy, cz, r, a, b, c, e, glow, spin) {
-    var rad = r * Math.pow(Math.max(1e-6, c), 0.3333);
-    var phi = Math.acos(2 * a - 1);
-    var ang = b * 6.2832;
-    var s = Math.sin(phi);
-    return [cx + rad * s * Math.cos(ang), cy + rad * Math.cos(phi), cz + rad * s * Math.sin(ang), e, glow, spin];
-  }
-
-  function turbineTower(a, b, c) {
-    var y = -0.70 + a * 0.76;
-    var k = 0.58 + 0.42 * (1 - a);
-    if (a < 0.07) k *= 1.45;
-    if (a > 0.92) k *= 1 + (a - 0.92) * 6;
-    var R = 0.085 * k;
-    var ang = b * 6.2832;
-    var rho = Math.sqrt(c) * R;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    return [co * rho, y, -0.18 + si * rho, turbineLit(co, 0.15, si), 0, 0];
-  }
-
-  function turbineNacelle(a, b, c) {
-    var along = a;
-    var z = -0.46 + along * 0.58;
-    var tail = along < 0.16 ? 0.55 + 0.45 * (along / 0.16) : 1;
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var rho = (0.62 + 0.38 * c) * tail;
-    return [
-      co * 0.115 * rho,
-      TURBINE_HUB[1] + si * 0.082 * rho,
-      z,
-      turbineLit(co * 0.3, si, 0.45),
-      0,
-      0
-    ];
-  }
-
-  function turbineBlade(i, a, b, c) {
-    var ang0 = 1.5708 + i * 2.0944;
-    var span = 0.07 + a * 0.62;
-    var chord = b;
-    var chordLen = 0.24 * (1 - a * 0.5);
-    var side = c < 0.5;
-    var u = side ? c * 2 : (c - 0.5) * 2;
-    var thick = 0.026 * (1 - a * 0.45);
-    var edge = 1;
-    if (chord < 0.14) edge = chord / 0.14;
-    else if (chord > 0.88) edge = (1 - chord) / 0.12;
-    var face = (side ? 1 : -1) * thick * Math.sin(Math.max(0, edge) * 1.5708) * (0.55 + 0.45 * u);
-    var lx = (chord - 0.4) * chordLen;
-    var ca = Math.cos(ang0);
-    var sa = Math.sin(ang0);
-    var cone = 0.07;
-    var rad = span * Math.cos(cone);
-    var e = side ? turbineLit(0, 0.2, 1) : turbineLit(0, 0, -1);
-    var glow = 0;
-    if (side && a > 0.84) {
-      e = 0.97;
-      glow = 0.32;
-    }
-    return [
-      TURBINE_HUB[0] + ca * rad - sa * lx,
-      TURBINE_HUB[1] + sa * rad + ca * lx,
-      TURBINE_HUB[2] + span * Math.sin(cone) + face,
-      e,
-      glow,
-      1
-    ];
-  }
-
-  function turbinePoint(f, a, b, c) {
-    var i;
-    if (f < 0.18) return turbineTower(a, b, c);
-    if (f < 0.32) return turbineNacelle(a, b, c);
-    if (f < 0.40) return turbineBall(TURBINE_HUB[0], TURBINE_HUB[1], TURBINE_HUB[2], 0.09, a, b, c, 0.56, 0, 0);
-    if (f < 0.45) return turbineBall(0, TURBINE_HUB[1], TURBINE_HUB[2] + 0.105, 0.058, a, b, c, 0.98, 0.4, 0);
-    i = (f - 0.45) / 0.55 * 3 | 0;
-    if (i > 2) i = 2;
-    return turbineBlade(i, a, b, c);
   }
 
   /* Lunar lander. Gold octagonal descent stage, cream cabin with an open
@@ -2827,16 +2727,6 @@
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
-    } else if (kind === 'turbine') {
-      o = turbinePoint(f, a, b, c);
-      p = [o[0], o[1], o[2]];
-      e = o[3];
-      if (o[4]) out.glow = o[4];
-      if (o[5]) {
-        out.mv = 'turbine';
-        out.hx = TURBINE_HUB[0];
-        out.hy = TURBINE_HUB[1];
-      }
     } else if (kind === 'lander') {
       o = landerPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
@@ -3135,22 +3025,6 @@
       o.th = -9;
       o.r = sp.r;
       return o;
-    }
-    if (sp.mv === 'turbine') {
-      ang = stage.time * TURBINE_SPIN;
-      co = Math.cos(ang);
-      si = Math.sin(ang);
-      x1 = sp.x - sp.hx;
-      y1 = sp.y - sp.hy;
-      return {
-        x: sp.hx + x1 * co - y1 * si,
-        y: sp.hy + x1 * si + y1 * co,
-        z: sp.z,
-        e: sp.e,
-        th: -9,
-        r: sp.r,
-        glow: sp.glow || 0
-      };
     }
     if (sp.mv === 'plume') {
       s = sp.u0 + sp.spd * t;
