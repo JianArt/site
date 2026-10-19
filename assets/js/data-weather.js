@@ -15,7 +15,7 @@
  * its own solid with data-shape on the hero; the lab previews with
  *   ?shape=, currently a sounding rocket, an eye,
  * a defibrillator,
- * a headset, and an industrial arm), still
+ * and an industrial arm), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['rocket', 'eye', 'defib', 'headset', 'robot'];
+  var LAB_NAMES = ['rocket', 'eye', 'defib', 'robot'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -422,10 +422,6 @@
       /* Both paddle faces stay open; the case and its handle sit above them. */
       rotY(q, 0.12 + 0.035 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.14);
-    } else if (kind === 'headset') {
-      /* Above and aside: both lenses stay open, and the strap loop clears the visor. */
-      rotY(q, 0.46 + 0.035 * Math.sin(t * 0.00014 + seed));
-      rotX(q, 0.30);
     } else if (kind === 'robot') {
       /* Joint faces stay open; the two gripper fingers stay apart. */
       rotY(q, 0.38 + 0.035 * Math.sin(t * 0.00014 + seed));
@@ -844,7 +840,7 @@
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     rocket: 1,
-    eye: 1, defib: 1, headset: 1, robot: 1
+    eye: 1, defib: 1, robot: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1506,246 +1502,6 @@
     return defibArch(a, b, c);
   }
 
-  /* VR headset. One visor, two open lenses, a camera on the bridge, and a
-     strap loop behind it large enough for a head. Lenses are holes with a
-     fat rim, never filled discs. The crown is a wide band, not a wire.
-     Mean camera rotY(0.46), rotX(0.30). */
-  var HS_HX = 0.84;
-  var HS_Y0 = -0.38;
-  var HS_Y1 = 0.42;
-  var HS_ZF = 0.30;
-  var HS_ZB = -0.08;
-  var HS_BOW = 0.06;
-  var HS_LX = 0.33;
-  var HS_LY = 0.05;
-  var HS_LR = 0.23;
-  var HS_TUBE = 0.052;
-  var HS_LIT = [0.16, 0.62, 0.76];
-
-  function hsShade(nx, ny, nz) {
-    var l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    var d = (nx * HS_LIT[0] + ny * HS_LIT[1] + nz * HS_LIT[2]) / l;
-    if (d < 0) d = 0;
-    return 0.32 + 0.40 * d;
-  }
-
-  function hsNoseLift(x) {
-    var u = x / 0.20;
-    return 0.20 * Math.exp(-u * u);
-  }
-
-  function hsLensHit(x, y) {
-    var dx = Math.abs(x) - HS_LX;
-    var dy = y - HS_LY;
-    return dx * dx + dy * dy < HS_LR * HS_LR;
-  }
-
-  function hsClampRound(x, y, hx, hy, rad) {
-    var cx = Math.max(-hx + rad, Math.min(hx - rad, x));
-    var cy = Math.max(-hy + rad, Math.min(hy - rad, y));
-    var dx = x - cx;
-    var dy = y - cy;
-    var h = Math.sqrt(dx * dx + dy * dy);
-    if (h > rad) {
-      x = cx + dx / h * rad;
-      y = cy + dy / h * rad;
-    }
-    return [x, y];
-  }
-
-  function hsBore(x, y, t) {
-    var side = x < 0 ? -1 : 1;
-    var dx = x - side * HS_LX;
-    var dy = y - HS_LY;
-    var h = Math.sqrt(dx * dx + dy * dy) || 1;
-    var r = HS_LR - HS_TUBE * 0.35;
-    return [
-      side * HS_LX + dx / h * r,
-      HS_LY + dy / h * r,
-      HS_ZF + 0.02 - t * 0.22,
-      0.30 + 0.12 * (1 - t),
-      0
-    ];
-  }
-
-  function hsShell(a, b, c) {
-    var cy = (HS_Y0 + HS_Y1) * 0.5;
-    var hy = (HS_Y1 - HS_Y0) * 0.5;
-    var x;
-    var y;
-    var z;
-    var nx = 0;
-    var ny = 0;
-    var nz = 0;
-    var q;
-    var yCut;
-    var side;
-    if (c < 0.52) {
-      x = (a * 2 - 1) * HS_HX;
-      y = cy + (b * 2 - 1) * hy;
-      q = hsClampRound(x, y - cy, HS_HX, hy, 0.18);
-      x = q[0];
-      y = q[1] + cy;
-      z = HS_ZF + HS_BOW * (1 - (x / HS_HX) * (x / HS_HX));
-      yCut = HS_Y0 + hsNoseLift(x);
-      if (y < yCut) {
-        z = HS_ZF - Math.min(0.24, (yCut - y) * 1.3);
-        y = yCut;
-        ny = -0.55;
-        nz = 0.4;
-      } else if (hsLensHit(x, y)) {
-        return hsBore(x, y, c / 0.52);
-      } else {
-        nx = HS_BOW * 2 * x / (HS_HX * HS_HX);
-        nz = 1;
-      }
-    } else if (c < 0.66) {
-      x = (a * 2 - 1) * (HS_HX - 0.08);
-      z = HS_ZB + b * (HS_ZF - HS_ZB + 0.08);
-      y = HS_Y1 - 0.02;
-      ny = 1;
-    } else if (c < 0.76) {
-      x = (a * 2 - 1) * (HS_HX - 0.1);
-      y = HS_Y0 + hsNoseLift(x) + 0.025;
-      z = HS_ZB + 0.05 + b * (HS_ZF - HS_ZB - 0.06);
-      ny = -1;
-    } else if (c < 0.90) {
-      side = c < 0.83 ? -1 : 1;
-      y = cy + (a * 2 - 1) * (hy - 0.05);
-      z = HS_ZB + b * (HS_ZF - HS_ZB);
-      x = side * HS_HX;
-      nx = side;
-    } else {
-      x = (a * 2 - 1) * (HS_HX - 0.08);
-      y = cy + (b * 2 - 1) * (hy - 0.06);
-      q = hsClampRound(x, y - cy, HS_HX - 0.08, hy - 0.06, 0.14);
-      x = q[0];
-      y = q[1] + cy;
-      z = HS_ZB;
-      nz = -1;
-    }
-    return [x, y, z, hsShade(nx, ny, nz), 0];
-  }
-
-  function hsSensor(a, b, c) {
-    var x = (a * 2 - 1) * 0.075;
-    var y = 0.155 + (b - 0.5) * 0.07;
-    var z = HS_ZF + HS_BOW + 0.06 + (c - 0.5) * 0.045;
-    return [x, y, z, c > 0.3 ? 0.98 : 0.78, c > 0.3 ? 0.4 : 0.12];
-  }
-
-  function hsLens(side, a, b, c) {
-    var ang = b * 6.2832;
-    var pol = a * 6.2832;
-    var tube = HS_TUBE * (0.84 + 0.16 * c);
-    var rim = Math.sin(pol);
-    var e = 0.46 + 0.52 * Math.max(0, rim);
-    if (Math.cos(pol) < -0.15) e = Math.min(e, 0.44);
-    return [
-      side * HS_LX + Math.cos(ang) * (HS_LR + Math.cos(pol) * tube),
-      HS_LY + Math.sin(ang) * (HS_LR + Math.cos(pol) * tube),
-      HS_ZF + 0.05 + rim * tube,
-      e,
-      rim > 0.4 ? 0.3 : 0
-    ];
-  }
-
-  function hsArm(side, a, b, c) {
-    var x0 = side * 0.78;
-    var y0 = 0.04;
-    var z0 = 0.00;
-    var x1 = side * 0.50;
-    var y1 = 0.12;
-    var z1 = -0.70;
-    var dx = x1 - x0;
-    var dy = y1 - y0;
-    var dz = z1 - z0;
-    var len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-    dx /= len;
-    dy /= len;
-    dz /= len;
-    var bx = -dz;
-    var bz = dx;
-    var bl = Math.sqrt(bx * bx + bz * bz) || 1;
-    bx /= bl;
-    bz /= bl;
-    var ux = dy * bz;
-    var uy = dz * bx - dx * bz;
-    var uz = -dy * bx;
-    var ul = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
-    ux /= ul;
-    uy /= ul;
-    uz /= ul;
-    var ang = b * 6.2832;
-    var rad = 0.11 * (0.62 + 0.38 * Math.sqrt(c));
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var nx = co * bx + si * ux;
-    var ny = si * uy;
-    var nz = co * bz + si * uz;
-    return [
-      x0 + (x1 - x0) * a + nx * rad,
-      y0 + (y1 - y0) * a + ny * rad,
-      z0 + (z1 - z0) * a + nz * rad,
-      hsShade(nx, ny, nz),
-      0
-    ];
-  }
-
-  function hsRear(a, b, c) {
-    var ang = Math.PI * (1 - a);
-    var coA = Math.cos(ang);
-    var siA = Math.sin(ang);
-    var x = coA * 0.50;
-    var y = 0.12 - siA * 0.02;
-    var z = -0.70 - siA * 0.40;
-    var ph = b * 6.2832;
-    var rad = 0.115 * (0.62 + 0.38 * Math.sqrt(c));
-    var co = Math.cos(ph);
-    var si = Math.sin(ph);
-    var nx = coA;
-    var nz = -siA;
-    var nl = Math.sqrt(nx * nx + nz * nz) || 1;
-    nx /= nl;
-    nz /= nl;
-    return [
-      x + rad * co * nx,
-      y + rad * si,
-      z + rad * co * nz,
-      hsShade(co * nx, si, co * nz),
-      0
-    ];
-  }
-
-  function hsCrown(a, b, c) {
-    var m = 1 - a;
-    var y = m * m * 0.40 + 2 * m * a * 0.64 + a * a * 0.22;
-    var z = m * m * 0.04 + 2 * m * a * -0.42 + a * a * -1.02;
-    var ty = 2 * m * (0.64 - 0.40) + 2 * a * (0.22 - 0.64);
-    var tz = 2 * m * (-0.42 - 0.04) + 2 * a * (-1.02 + 0.42);
-    var tl = Math.sqrt(ty * ty + tz * tz) || 1;
-    var ny = -tz / tl;
-    var nz = ty / tl;
-    var width = 0.24 * (0.82 + 0.18 * Math.sin(a * 3.1416));
-    var thick = (c - 0.5) * 0.08;
-    return [
-      (b - 0.5) * 2 * width,
-      y + thick * ny,
-      z + thick * nz,
-      hsShade(0, c > 0.5 ? 1 : -0.35, 0.15),
-      0
-    ];
-  }
-
-  function headsetPoint(f, a, b, c) {
-    if (f < 0.42) return hsShell(a, b, c);
-    if (f < 0.46) return hsSensor(a, b, c);
-    if (f < 0.64) return hsLens(f < 0.55 ? -1 : 1, a, b, c);
-    if (f < 0.78) return hsArm(f < 0.71 ? -1 : 1, a, b, c);
-    if (f < 0.90) return hsRear(a, b, c);
-    return hsCrown(a, b, c);
-  }
-
   /* Industrial arm. A wide base, two joint discs bigger than the links,
      and a parallel gripper around a small block. Discs face the viewer.
      Links are thick tubes, never wires. Mean camera rotY(0.38), rotX(0.24). */
@@ -2207,11 +1963,6 @@
       if (o[4]) out.glow = o[4];
     } else if (kind === 'defib') {
       o = defibPoint(f, a, b, c);
-      p = [o[0], o[1], o[2]];
-      e = o[3];
-      if (o[4]) out.glow = o[4];
-    } else if (kind === 'headset') {
-      o = headsetPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
