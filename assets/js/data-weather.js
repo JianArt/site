@@ -14,7 +14,7 @@
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
  *   ?shape=, currently a sounding rocket, an eye,
- * a Mars rover, a defibrillator,
+ * a defibrillator,
  * a headset, and an industrial arm), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['rocket', 'eye', 'rover', 'defib', 'headset', 'robot'];
+  var LAB_NAMES = ['rocket', 'eye', 'defib', 'headset', 'robot'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -418,10 +418,6 @@
       /* Near-frontal, so the pupil stays a hole and the lids keep their arch. */
       rotY(q, 0.28 + 0.04 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.1);
-    } else if (kind === 'rover') {
-      /* Side three-quarter: near wheels stay open rings, both lenses face us. */
-      rotY(q, 0.50 + 0.035 * Math.sin(t * 0.00013 + seed));
-      rotX(q, 0.18);
     } else if (kind === 'defib') {
       /* Both paddle faces stay open; the case and its handle sit above them. */
       rotY(q, 0.12 + 0.035 * Math.sin(t * 0.00014 + seed));
@@ -848,7 +844,7 @@
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     rocket: 1,
-    eye: 1, rover: 1, defib: 1, headset: 1, robot: 1
+    eye: 1, defib: 1, headset: 1, robot: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1370,139 +1366,6 @@
     return eyeLower(a, b, c);
   }
 
-  /* Mars rover, length along +x, near side at +z. Three wheel pairs under
-     a deck, a generator on the rear, a mast and a head with two lenses.
-     Wheels are fat tori so each hole stays open. No whip antenna and no
-     rocker linkage: a rod through the hubs would close the holes.
-     Mean camera rotY(0.50), rotX(0.18). */
-  var ROVER_WX = [-0.64, 0.00, 0.64];
-  var ROVER_WY = -0.30;
-  var ROVER_WZ = 0.46;
-  var ROVER_WR = 0.20;
-  var ROVER_WT = 0.050;
-
-  function roverLit(nx, ny, nz) {
-    var d = nx * 0.18 + ny * 0.58 + nz * 0.78;
-    if (d < 0) d = 0;
-    return 0.28 + 0.40 * d;
-  }
-
-  function roverWheel(cx, cy, cz, a, b, c, near) {
-    var th = b * 6.2832;
-    var ph = a * 6.2832;
-    var tube = Math.sqrt(c) * ROVER_WT;
-    var radial = Math.cos(ph);
-    var rr = ROVER_WR + radial * tube;
-    var co = Math.cos(th);
-    var si = Math.sin(th);
-    var nz = Math.sin(ph);
-    var e = roverLit(co * radial, si * radial, nz);
-    if (!near) e *= 0.78;
-    return [cx + co * rr, cy + si * rr, cz + nz * tube, e, 0];
-  }
-
-  function roverHub(cx, cy, cz, a, b) {
-    var ang = b * 6.2832;
-    var rho = 0.030 * Math.sqrt(a);
-    return [cx + Math.cos(ang) * rho, cy + Math.sin(ang) * rho, cz, 0.62, 0];
-  }
-
-  function roverShell(x0, y0, z0, x1, y1, z1, a, b, c) {
-    var dx = x1 - x0;
-    var dy = y1 - y0;
-    var dz = z1 - z0;
-    var skin = ((a * 12.7 + b * 5.3) % 1);
-    var x = x0 + a * dx;
-    var y = y0 + b * dy;
-    var z = z0 + b * dz;
-    var nx = 0;
-    var ny = 0;
-    var nz = 0;
-    skin *= skin * 0.045;
-    if (c < 0.40) {
-      y = y1 - skin;
-      z = z0 + b * dz;
-      ny = 1;
-    } else if (c < 0.62) {
-      z = z1 - skin;
-      nz = 1;
-    } else if (c < 0.74) {
-      y = y0 + skin;
-      z = z0 + b * dz;
-      ny = -1;
-    } else if (c < 0.84) {
-      z = z0 + skin;
-      nz = -1;
-    } else if (c < 0.92) {
-      x = x1 - skin;
-      y = y0 + a * dy;
-      z = z0 + b * dz;
-      nx = 1;
-    } else {
-      x = x0 + skin;
-      y = y0 + a * dy;
-      z = z0 + b * dz;
-      nx = -1;
-    }
-    return [x, y, z, roverLit(nx, ny, nz), 0];
-  }
-
-  function roverRtg(a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var y = 0.14 + a * 0.20;
-    var rad = 0.105 * (a > 0.78 ? Math.sqrt(c) : 0.86 + 0.14 * Math.sqrt(c));
-    var e = a > 0.78 ? 0.86 : roverLit(co, 0.25, si);
-    return [-0.58 + co * rad, y, si * rad, e, a > 0.78 ? 0.16 : 0];
-  }
-
-  function roverMast(a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var y = 0.14 + a * 0.40;
-    var R = 0.078 * (0.78 + 0.22 * c);
-    if (a < 0.14) R *= 1.45;
-    if (a > 0.88) R *= 1.2;
-    return [0.26 + co * R, y, si * R, roverLit(co, 0.15, si), 0];
-  }
-
-  function roverLens(cx, cy, a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var rho;
-    if (c < 0.64) {
-      rho = 0.064 * Math.sqrt(a);
-      return [cx + co * rho, cy + si * rho, 0.248, 0.98, 0.55];
-    }
-    rho = 0.064 + 0.030 * a;
-    return [cx + co * rho, cy + si * rho, 0.216, 0.46, 0];
-  }
-
-  function roverPoint(f, a, b, c) {
-    var i;
-    var near;
-    var u;
-    if (f < 0.46) {
-      near = f < 0.34;
-      u = near ? f / 0.34 : (f - 0.34) / 0.12;
-      i = (u * 3) | 0;
-      if (i > 2) i = 2;
-      return roverWheel(ROVER_WX[i], ROVER_WY, near ? ROVER_WZ : -ROVER_WZ, a, b, c, near);
-    }
-    if (f < 0.52) {
-      i = ((f - 0.46) / 0.06 * 6) | 0;
-      if (i > 5) i = 5;
-      return roverHub(ROVER_WX[i % 3], ROVER_WY, i < 3 ? ROVER_WZ : -ROVER_WZ, a, b);
-    }
-    if (f < 0.68) return roverShell(-0.92, -0.06, -0.24, 0.88, 0.14, 0.24, a, b, c);
-    if (f < 0.76) return roverRtg(a, b, c);
-    if (f < 0.86) return roverMast(a, b, c);
-    if (f < 0.94) return roverShell(0.06, 0.48, -0.16, 0.50, 0.68, 0.22, a, b, c);
-    return roverLens(f < 0.97 ? 0.16 : 0.38, 0.58, a, b, c);
-  }
 
   /* Defibrillator: two paddle electrodes under a portable case.
      Each paddle is a filled disc with a fat rim and a handle below it.
@@ -2339,11 +2202,6 @@
       }
     } else if (kind === 'eye') {
       o = eyePoint(f, a, b, c, id);
-      p = [o[0], o[1], o[2]];
-      e = o[3];
-      if (o[4]) out.glow = o[4];
-    } else if (kind === 'rover') {
-      o = roverPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
