@@ -13,8 +13,7 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- *   ?shape=, currently an MRI gantry, a
- * binocular microscope, a sounding rocket, a radar
+ *   ?shape=, currently a binocular microscope, a sounding rocket, a radar
  * dish, an eye, a skull, a stethoscope, a bionic hand, a
  * wheelchair, an airliner, a wind turbine, a lunar lander, a
  * Mars rover, a defibrillator, a headset, and an industrial arm), still
@@ -114,7 +113,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['mri', 'microscope', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair', 'airliner', 'turbine', 'lander', 'rover', 'defib', 'headset', 'robot'];
+  var LAB_NAMES = ['microscope', 'rocket', 'radar', 'eye', 'skull', 'stethoscope', 'bionic', 'wheelchair', 'airliner', 'turbine', 'lander', 'rover', 'defib', 'headset', 'robot'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -412,10 +411,6 @@
     } else if (kind === 'datacenter') {
       rotY(q, 0.55 + 0.25 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.35);
-    } else if (kind === 'mri') {
-      /* Bore opens toward the viewer; pitch keeps the couch top visible. */
-      rotY(q, -1.02 + 0.06 * Math.sin(t * 0.00014 + seed));
-      rotX(q, 0.46);
     } else if (kind === 'microscope') {
       /* Side three-quarter: arm behind the tube, stage cantilever, both eyepieces. */
       rotY(q, -1.02 + 0.05 * Math.sin(t * 0.00014 + seed));
@@ -889,7 +884,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    mri: 1, microscope: 1, rocket: 1, radar: 1,
+    microscope: 1, rocket: 1, radar: 1,
     eye: 1, skull: 1, stethoscope: 1, bionic: 1, wheelchair: 1, airliner: 1,
     turbine: 1, lander: 1, rover: 1, defib: 1, headset: 1, robot: 1
   };
@@ -1166,70 +1161,6 @@
     var r2 = Math.sqrt(-2 * Math.log(Math.max(1e-6, mix01(id ^ 0x119de1f3))));
     var t2 = 6.2832 * mix01(id ^ 0x6c8e9cf5);
     return [r1 * Math.cos(t1), r1 * Math.sin(t1), r2 * Math.cos(t2)];
-  }
-
-  /* Gantry axis is +x. The couch runs out through the bore toward +x. */
-  var MRI_CY = 0.06;
-  var MRI_BORE = 0.40;
-  var MRI_OUTER = 0.76;
-  var MRI_FRONT = 0.26;
-  var MRI_BACK = -0.40;
-  var MRI_COUCH_X0 = 0.02;
-  var MRI_COUCH_X1 = 1.06;
-  var MRI_COUCH_Z = 0.22;
-  var MRI_COUCH_Y = 0.0;
-
-  function mriFace(x, b, c, front) {
-    var ang = b * 6.2832;
-    var rad = Math.sqrt(MRI_BORE * MRI_BORE + c * (MRI_OUTER * MRI_OUTER - MRI_BORE * MRI_BORE));
-    var inset = 0;
-    var lip = front && rad < 0.50;
-    if (front && rad < 0.52) inset = (0.52 - rad) * 0.55;
-    else if (front && rad > 0.66) inset = (rad - 0.66) * 0.28;
-    return [
-      x - inset,
-      MRI_CY + Math.cos(ang) * rad,
-      Math.sin(ang) * rad,
-      lip ? 0.9 : (front ? 0.56 : 0.38),
-      0
-    ];
-  }
-
-  function mriWall(outer, b, c) {
-    var ang = b * 6.2832;
-    var up = Math.cos(ang);
-    return [
-      MRI_BACK + c * (MRI_FRONT - MRI_BACK),
-      MRI_CY + up * (outer ? MRI_OUTER : MRI_BORE),
-      Math.sin(ang) * (outer ? MRI_OUTER : MRI_BORE),
-      outer ? 0.46 : (up > 0.25 ? 0.84 : 0.48),
-      0
-    ];
-  }
-
-  function mriCouch(a, b, c) {
-    var x = MRI_COUCH_X0 + a * (MRI_COUCH_X1 - MRI_COUCH_X0);
-    var z = (b - 0.5) * 2 * MRI_COUCH_Z;
-    var y = MRI_COUCH_Y;
-    var bot = MRI_COUCH_Y - 0.16;
-    var e = 0.68;
-    if (c < 0.58) {
-      /* Top of the couch, the broad face. */
-    } else if (c < 0.78) {
-      z = b < 0.5 ? -MRI_COUCH_Z : MRI_COUCH_Z;
-      y = bot + ((c - 0.58) / 0.2) * (MRI_COUCH_Y - bot);
-      e = 0.5;
-    } else if (c < 0.92) {
-      /* Near end, the face that points out of the bore. */
-      x = MRI_COUCH_X1;
-      z = (a - 0.5) * 2 * MRI_COUCH_Z;
-      y = bot + b * (MRI_COUCH_Y - bot);
-      e = 0.78;
-    } else {
-      y = bot;
-      e = 0.4;
-    }
-    return [x, y, z, e, 0];
   }
 
   /* Compound microscope in profile. Arm pillar at the back, stage cantilevered
@@ -3619,16 +3550,6 @@
         };
         p = [out.u0, k < 3 ? DC_GROUND + 0.02 : DC_GROUND + DC_H + 0.09, out.lane];
       }
-    } else if (kind === 'mri') {
-      /* Scanner: thick gantry, open bore, and the couch running out of it. */
-      if (f < 0.28) o = mriFace(MRI_FRONT, b, c, true);
-      else if (f < 0.36) o = mriFace(MRI_BACK, b, c, false);
-      else if (f < 0.48) o = mriWall(true, b, c);
-      else if (f < 0.58) o = mriWall(false, b, c);
-      else o = mriCouch(a, b, c);
-      p = [o[0], o[1], o[2]];
-      e = o[3];
-      if (o[4]) out.glow = o[4];
     } else if (kind === 'microscope') {
       /* Binocular head, objective gap, and the stage aperture. */
       o = scopePoint(f, a, b, c);
