@@ -14,7 +14,7 @@
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
  *   ?shape=, currently a sounding rocket, an eye,
- * a lunar lander, a Mars rover, a defibrillator,
+ * a Mars rover, a defibrillator,
  * a headset, and an industrial arm), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
@@ -112,7 +112,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['rocket', 'eye', 'lander', 'rover', 'defib', 'headset', 'robot'];
+  var LAB_NAMES = ['rocket', 'eye', 'rover', 'defib', 'headset', 'robot'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -418,10 +418,6 @@
       /* Near-frontal, so the pupil stays a hole and the lids keep their arch. */
       rotY(q, 0.28 + 0.04 * Math.sin(t * 0.00014 + seed));
       rotX(q, 0.1);
-    } else if (kind === 'lander') {
-      /* Above the deck: both near pads, the visor, and the bell between them. */
-      rotY(q, 0.58 + 0.035 * Math.sin(t * 0.00013 + seed));
-      rotX(q, 0.46);
     } else if (kind === 'rover') {
       /* Side three-quarter: near wheels stay open rings, both lenses face us. */
       rotY(q, 0.50 + 0.035 * Math.sin(t * 0.00013 + seed));
@@ -852,7 +848,7 @@
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
     rocket: 1,
-    eye: 1, lander: 1, rover: 1, defib: 1, headset: 1, robot: 1
+    eye: 1, rover: 1, defib: 1, headset: 1, robot: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1372,222 +1368,6 @@
     if (f < 0.69) return eyeGlint(a, b);
     if (f < 0.88) return eyeUpper(a, b, c);
     return eyeLower(a, b, c);
-  }
-
-  /* Lunar lander. Gold octagonal descent stage, cream cabin with an open
-     visor, four legs ending in footpads, a bell under the deck. No ladder
-     and no probe: a row of beads would read as a stroke. Legs and pads are
-     filled volumes. Mean camera rotY(0.58), rotX(0.46). */
-  var LANDER_R = 0.46;
-  var LANDER_Y0 = -0.14;
-  var LANDER_Y1 = 0.20;
-
-  function landerLit(nx, ny, nz) {
-    var d = nx * 0.20 + ny * 0.66 + nz * 0.68;
-    if (d < 0) d = 0;
-    return 0.30 + 0.52 * d;
-  }
-
-  function landerDir(i) {
-    var ang = 0.7854 + i * 1.5708;
-    return [Math.cos(ang), Math.sin(ang)];
-  }
-
-  function landerRod(p0, p1, rad, a, b, c) {
-    var dx = p1[0] - p0[0];
-    var dy = p1[1] - p0[1];
-    var dz = p1[2] - p0[2];
-    var len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-    var ux = dx / len;
-    var uy = dy / len;
-    var uz = dz / len;
-    var hx = Math.abs(uz) > 0.85 ? 1 : 0;
-    var hz = hx ? 0 : 1;
-    var nx = uy * hz;
-    var ny = uz * hx - ux * hz;
-    var nz = -uy * hx;
-    var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    var bx;
-    var by;
-    var bz;
-    var ang;
-    var co;
-    var si;
-    var rho;
-    var rx;
-    var ry;
-    var rz;
-    nx /= nl;
-    ny /= nl;
-    nz /= nl;
-    bx = uy * nz - uz * ny;
-    by = uz * nx - ux * nz;
-    bz = ux * ny - uy * nx;
-    ang = b * 6.2832;
-    co = Math.cos(ang);
-    si = Math.sin(ang);
-    rho = Math.sqrt(c) * rad;
-    rx = nx * co + bx * si;
-    ry = ny * co + by * si;
-    rz = nz * co + bz * si;
-    return [
-      p0[0] + dx * a + rx * rho,
-      p0[1] + dy * a + ry * rho,
-      p0[2] + dz * a + rz * rho,
-      landerLit(rx, ry + 0.35, rz),
-      0
-    ];
-  }
-
-  function landerSide(a, b) {
-    var i = a * 8 | 0;
-    var u;
-    var a0;
-    var a1;
-    var am;
-    var x;
-    var z;
-    if (i > 7) i = 7;
-    u = a * 8 - i;
-    a0 = 0.3927 + i * 0.7854;
-    a1 = a0 + 0.7854;
-    am = a0 + 0.3927;
-    x = (Math.cos(a0) * (1 - u) + Math.cos(a1) * u) * LANDER_R;
-    z = (Math.sin(a0) * (1 - u) + Math.sin(a1) * u) * LANDER_R;
-    return [x, LANDER_Y0 + b * (LANDER_Y1 - LANDER_Y0), z, landerLit(Math.cos(am), 0.12, Math.sin(am)), 0];
-  }
-
-  function landerDeck(a, b) {
-    var ang = b * 6.2832;
-    var sector = Math.round(ang / 0.7854);
-    var delta = ang - sector * 0.7854;
-    var c = Math.cos(delta);
-    var rho;
-    if (c < 0.92) c = 0.92;
-    rho = Math.sqrt(a) * (LANDER_R * 0.9239 / c) * 0.97;
-    return [Math.cos(ang) * rho, LANDER_Y1, Math.sin(ang) * rho, 0.93, 0.08];
-  }
-
-  function landerCabin(a, b, c) {
-    var x0 = -0.24;
-    var x1 = 0.24;
-    var y0 = LANDER_Y1;
-    var y1 = 0.58;
-    var z0 = -0.16;
-    var z1 = 0.30;
-    var u = a;
-    var v = b;
-    if (c < 0.42) {
-      /* Visor samples move onto the roof, so the window stays a hole
-         and the frame is not a piled stroke. */
-      if (u > 0.16 && u < 0.84 && v > 0.24 && v < 0.76) {
-        return [
-          x0 + (u - 0.16) / 0.68 * (x1 - x0),
-          y1,
-          z0 + (v - 0.24) / 0.52 * (z1 - z0),
-          0.90,
-          0.06
-        ];
-      }
-      return [x0 + u * (x1 - x0), y0 + v * (y1 - y0), z1, 0.96, 0.16];
-    }
-    if (c < 0.60) {
-      return [x0, y0 + b * (y1 - y0), z0 + a * (z1 - z0), landerLit(-1, 0.25, 0.2), 0];
-    }
-    if (c < 0.78) {
-      return [x1, y0 + b * (y1 - y0), z0 + a * (z1 - z0), 0.84, 0.05];
-    }
-    return [x0 + a * (x1 - x0), y1, z0 + b * (z1 - z0), 0.90, 0.06];
-  }
-
-  function landerNeck(a, b, c) {
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var rho = Math.sqrt(c) * 0.042;
-    return [co * rho, 0.58 + a * 0.10, si * rho, landerLit(co, 0.45, si), 0];
-  }
-
-  function landerBall(a, b, c) {
-    var rad = 0.078 * Math.pow(Math.max(1e-6, c), 0.3333);
-    var phi = Math.acos(2 * a - 1);
-    var ang = b * 6.2832;
-    var s = Math.sin(phi);
-    return [
-      rad * s * Math.cos(ang),
-      0.76 + rad * Math.cos(phi),
-      rad * s * Math.sin(ang),
-      0.98,
-      0.36
-    ];
-  }
-
-  function landerLeg(i, a, b, c) {
-    var d = landerDir(i);
-    return landerRod(
-      [d[0] * 0.36, -0.06, d[1] * 0.36],
-      [d[0] * 0.90, -0.52, d[1] * 0.90],
-      0.058,
-      a, b, c
-    );
-  }
-
-  function landerPad(i, a, b, c) {
-    var d = landerDir(i);
-    var cx = d[0] * 0.94;
-    var cz = d[1] * 0.94;
-    var cy = -0.58;
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var rho;
-    var ph;
-    var tube;
-    var rr;
-    if (c < 0.74) {
-      rho = 0.155 * Math.sqrt(a);
-      return [cx + co * rho, cy + 0.012, cz + si * rho, 0.62 + 0.22 * (rho / 0.155), 0];
-    }
-    ph = a * 6.2832;
-    tube = 0.038;
-    rr = 0.155 + Math.cos(ph) * tube;
-    return [cx + co * rr, cy + Math.sin(ph) * tube, cz + si * rr, 0.94, 0.18];
-  }
-
-  function landerBell(a, b, c) {
-    var t = a;
-    var R = 0.05 + t * t * 0.13;
-    var ang = b * 6.2832;
-    var co = Math.cos(ang);
-    var si = Math.sin(ang);
-    var rho = R * (0.58 + 0.42 * Math.sqrt(c));
-    var e = landerLit(co * 0.35, -0.7, si * 0.35);
-    var glow = 0;
-    if (t > 0.8 && c > 0.45) {
-      e = 0.92;
-      glow = 0.14;
-    }
-    return [co * rho, -0.12 - t * 0.24, si * rho, e, glow];
-  }
-
-  function landerPoint(f, a, b, c) {
-    var i;
-    if (f < 0.14) return landerSide(a, b);
-    if (f < 0.28) return landerDeck(a, b);
-    if (f < 0.50) return landerCabin(a, b, c);
-    if (f < 0.54) return landerNeck(a, b, c);
-    if (f < 0.60) return landerBall(a, b, c);
-    if (f < 0.80) {
-      i = (f - 0.60) / 0.20 * 4 | 0;
-      if (i > 3) i = 3;
-      return landerLeg(i, a, b, c);
-    }
-    if (f < 0.94) {
-      i = (f - 0.80) / 0.14 * 4 | 0;
-      if (i > 3) i = 3;
-      return landerPad(i, a, b, c);
-    }
-    return landerBell(a, b, c);
   }
 
   /* Mars rover, length along +x, near side at +z. Three wheel pairs under
@@ -2559,11 +2339,6 @@
       }
     } else if (kind === 'eye') {
       o = eyePoint(f, a, b, c, id);
-      p = [o[0], o[1], o[2]];
-      e = o[3];
-      if (o[4]) out.glow = o[4];
-    } else if (kind === 'lander') {
-      o = landerPoint(f, a, b, c);
       p = [o[0], o[1], o[2]];
       e = o[3];
       if (o[4]) out.glow = o[4];
