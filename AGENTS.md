@@ -72,12 +72,42 @@ When you change one of them, bump its version on **all** HTML pages
 
 ## Scheduled agents
 
-**Dot Studio** (daily) may push straight to `main`, but only to add one new
-solid to `LAB_NAMES`, never to change a live solid, `SHAPE_NAMES`,
-`PROJECT_NAMES` or anything outside `data-weather.js` and its `?v=` bumps.
-Before pushing, check the shape as described above and confirm no console errors
-on `/` and one case study. Commit message: `Dot Studio: add <name> to the lab`.
-Changes to live solids go through a pull request.
+**Dot Studio** (daily) never pushes to `main`. It opens one pull request that
+adds a single new solid to `LAB_NAMES`. Never change a live solid,
+`SHAPE_NAMES`, `PROJECT_NAMES`, or anything outside `data-weather.js` and its
+`?v=` bumps. If your previous Dot Studio pull request is still open, stop and
+do nothing. Title and commit: `Dot Studio: add <name> to the lab`. Jian promotes
+a lab solid into `SHAPE_NAMES` herself; promoting is not this agent's job.
+Changes to live solids go through a separate pull request.
+
+### Dot Studio brief
+
+The solid must hold its own as a slowly turning hero figure made only of gold
+and cream dots. Study the craft of `helix`, `lidar`, `mountains` and `city`
+before inventing anything: clear silhouette, depth, reserved cream/glow, no
+bead-lines.
+
+**Prefer** large systems and places: ridges and canyons, bridges and towers,
+harbors and quays, antenna fields, crystal lattices, river deltas,
+amphitheatres, dune fields, plazas, docks, ranges. Forms that fill roughly
+±1.2 × ±0.7 and read as volume, not as a prop on a table.
+
+**Avoid** handheld or medical props (tools, flasks, syringes, teeth, scopes),
+vehicles with thin legs or antennae, and anything whose recognizability depends
+on thin stems, needles, wires, rails or outlines. Dense rows of beads that read
+as strokes count as lines — forbidden.
+
+**Must pass before opening the pull request:**
+
+1. Load `/?shape=<name>`, wait ~13s into the first hold, screenshot at 1440px
+   and 390px. Keep the tab in front (or pump frames manually).
+2. At 390px, a stranger should name the subject in under a second from the
+   silhouette alone. If it looks vague, sparse, wireframe-like or like a pile
+   of beads, scrap it and try a different idea — do not open a pull request.
+3. Cream and glow mark structure (crests, sensors, lights, edges that explain
+   the form), never decoration sprinkled evenly.
+4. No console errors on `/` and one case study.
+5. Attach both hold screenshots to the pull request description.
 
 **Site Health** (daily) may push straight to `main` for objective fixes only:
 broken links or images, missing alt text, heading order, oversized images,
