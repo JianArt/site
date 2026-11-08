@@ -13,7 +13,7 @@
  * technology set: motion planning, neural network, satellites, occupancy
  * voxels, chip wafer, data center; five per visit; a case-study page names
  * its own solid with data-shape on the hero; the lab previews with
- *   ?shape=, currently a sounding rocket), still
+ *   ?shape=, currently a sounding rocket and a cooling-tower plant), still
  * breathing, then return
  * to the range. No lines. Never opacity pulse. prefers-reduced-motion:
  * one still frame. No pointer.
@@ -110,7 +110,7 @@
   var PROJECT_SHAPES = {};
   PROJECT_NAMES.forEach(function (n) { PROJECT_SHAPES[n] = 1; });
   /* Lab solids only appear through ?shape=, until promoted into SHAPE_NAMES. */
-  var LAB_NAMES = ['rocket'];
+  var LAB_NAMES = ['rocket', 'cooling'];
   function knownShape(name) {
     return !!name && (SHAPE_NAMES.indexOf(name) >= 0 || !!PROJECT_SHAPES[name] ||
       LAB_NAMES.indexOf(name) >= 0);
@@ -412,6 +412,10 @@
       /* Nose up. Two fins present their faces; the third stays behind the body. */
       rotY(q, 0.48 + 0.05 * Math.sin(t * 0.00013 + seed));
       rotX(q, 0.18);
+    } else if (kind === 'cooling') {
+      /* Three-quarter view: both waists in profile, both mouths open. */
+      rotY(q, 0.62 + 0.05 * Math.sin(t * 0.00012 + seed));
+      rotX(q, 0.3);
     } else if (kind === 'bubbles') {
       rotY(q, seed * 0.4 + 0.3 * Math.sin(t * 0.00015 + seed));
       rotX(q, 0.25);
@@ -825,7 +829,7 @@
   var EXTRA_SHAPES = {
     scan: 1, lungs: 1, blood: 1, neuron: 1, globe: 1, molecule: 1, heart: 1,
     planning: 1, neural: 1, satellites: 1, voxels: 1, wafer: 1, datacenter: 1,
-    rocket: 1
+    rocket: 1, cooling: 1
   };
   var SCAN_SLICES = 22;
   var BLOOD_CELLS = 21;
@@ -1236,6 +1240,130 @@
     return rocketNozzle(a, b, c);
   }
 
+  /* Natural-draft cooling towers. The shell is a thick hyperboloid, the
+     lip a concrete coping, the hall a volume in front. Steam rises as a
+     soft cone of dots, never a bead column. */
+  var COOL_GROUND = -0.5;
+  var COOL_H = 1.28;
+  var COOL_THROAT = 0.2;
+  var COOL_TOWERS = [
+    { x: -0.42, z: 0.0, s: 1 },
+    { x: 0.48, z: -0.28, s: 0.8 }
+  ];
+
+  function coolProfile(h) {
+    var k = (h - 0.58) / 0.4;
+    var q = Math.sqrt(1 + k * k * 1.05);
+    return { r: q, dr: (k * 1.05) / (0.4 * q) };
+  }
+
+  function coolShade(co, si, dr) {
+    var nx = co;
+    var ny = -dr;
+    var nz = si * 0.85;
+    var len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    var d = (nx * 0.55 + ny * 0.22 + nz * 0.62) / len;
+    if (d < 0) d = 0;
+    return 0.24 + 0.4 * d;
+  }
+
+  function coolingShell(tower, h, b, c, lip) {
+    var prof = coolProfile(h);
+    var rad = COOL_THROAT * tower.s * prof.r;
+    var ang = b * 6.2832;
+    var co = Math.cos(ang);
+    var si = Math.sin(ang);
+    var thick = lip ? 0.12 : 0.07 + 0.07 * (1 - h);
+    var rho = rad * (1 - thick * (1 - c));
+    var y = COOL_GROUND + h * COOL_H * tower.s;
+    var e = coolShade(co, si, prof.dr);
+    var glow = 0;
+    if (lip) {
+      var lipT = (h - 0.92) / 0.08;
+      if (c < 0.38) {
+        rho = rad * (0.62 + 0.16 * c);
+        y -= 0.035 * tower.s;
+        e = 0.14;
+      } else {
+        rho = rad * (1.02 + 0.1 * lipT) * (0.94 + 0.06 * c);
+        e = 0.96;
+        glow = 0.4;
+      }
+    }
+    return [tower.x + co * rho, y, tower.z + si * rho, e, glow];
+  }
+
+  function coolingHall(a, b, c, id) {
+    var lo = [-0.32, COOL_GROUND, 0.18];
+    var hi = [0.62, -0.18, 0.52];
+    var p;
+    var e;
+    var bay;
+    var u;
+    var jx;
+    var jy;
+    if (c < 0.2) {
+      bay = a < 0.5 ? -0.08 : 0.36;
+      u = a < 0.5 ? a * 2 : (a - 0.5) * 2;
+      jx = (mix01(id ^ 0xa11ce5) - 0.5) * 0.04;
+      jy = (mix01(id ^ 0xb22df6) - 0.5) * 0.03;
+      p = [bay + (u - 0.5) * 0.22 + jx, -0.4 + b * 0.16 + jy, hi[2]];
+      return [p[0], p[1], p[2], 0.96, 0.48];
+    }
+    p = boxPoint(lo, hi, a, b, c, 0.05);
+    if (p[1] > hi[1] - 0.02) e = 0.58;
+    else if (p[2] > hi[2] - 0.02) e = 0.5;
+    else if (p[0] > hi[0] - 0.02) e = 0.32;
+    else e = 0.4;
+    return [p[0], p[1], p[2], e, 0];
+  }
+
+  function coolingPond(tower, a, b) {
+    var ang = a * 6.2832;
+    var rad = COOL_THROAT * tower.s * coolProfile(0).r * (0.72 + 0.55 * Math.sqrt(b));
+    return [
+      tower.x + Math.cos(ang) * rad,
+      COOL_GROUND + 0.012,
+      tower.z + Math.sin(ang) * rad * 0.78,
+      0.28,
+      0
+    ];
+  }
+
+  function coolingPoint(f, a, b, c, id) {
+    if (f < 0.06) return coolingShell(COOL_TOWERS[0], 0.92 + a * 0.08, b, c, true);
+    if (f < 0.36) return coolingShell(COOL_TOWERS[0], a, b, c, false);
+    if (f < 0.41) return coolingShell(COOL_TOWERS[1], 0.92 + a * 0.08, b, c, true);
+    if (f < 0.64) return coolingShell(COOL_TOWERS[1], a, b, c, false);
+    if (f < 0.8) return coolingHall(a, b, c, id);
+    return coolingPond(COOL_TOWERS[f < 0.86 ? 0 : 1], a, b);
+  }
+
+  function coolingSteamAt(which, s, ang, rad) {
+    var tower = COOL_TOWERS[which];
+    var mouth = COOL_THROAT * tower.s * coolProfile(1).r * 0.7;
+    var y = COOL_GROUND + COOL_H * tower.s + s * 0.36;
+    var spread = mouth * (0.2 + s * s * 0.95);
+    return [
+      tower.x + Math.cos(ang) * spread * rad,
+      y,
+      tower.z + Math.sin(ang) * spread * rad
+    ];
+  }
+
+  function coolingSteam(which, a, b, c) {
+    var ang = b * 6.2832;
+    var rad = Math.sqrt(c);
+    var p = coolingSteamAt(which, a, ang, rad);
+    return {
+      x: p[0], y: p[1], z: p[2],
+      e: a < 0.22 ? 0.88 : 0.46,
+      glow: a < 0.18 ? 0.4 : 0,
+      which: which, u0: a, ang: ang, rad: rad,
+      spd: 0.0002 + c * 0.00016
+    };
+  }
+
   function extraPoint(kind, id, seed, a, b, c) {
     var f = mix01(id ^ 0x0badf00d);
     var g = gauss3(id);
@@ -1513,6 +1641,24 @@
         out.rad = o.rad;
         out.spd = o.spd;
         out.glow = o.glow;
+        p = [o.x, o.y, o.z];
+        e = o.e;
+      }
+    } else if (kind === 'cooling') {
+      if (f < 0.9) {
+        o = coolingPoint(f, a, b, c, id);
+        p = [o[0], o[1], o[2]];
+        e = o[3];
+        if (o[4]) out.glow = o[4];
+      } else {
+        o = coolingSteam(f < 0.955 ? 0 : 1, a, b, c);
+        out.mv = 'steam';
+        out.which = o.which;
+        out.u0 = o.u0;
+        out.ang = o.ang;
+        out.rad = o.rad;
+        out.spd = o.spd;
+        if (o.glow) out.glow = o.glow;
         p = [o.x, o.y, o.z];
         e = o.e;
       }
@@ -1800,6 +1946,18 @@
         th: -9, r: sp.r,
         glow: s < 0.28 ? 0.65 : 0,
         fe: clamp01(Math.min(s, 1 - s) / 0.14)
+      };
+    }
+    if (sp.mv === 'steam') {
+      s = sp.u0 + sp.spd * t;
+      s -= Math.floor(s);
+      o = coolingSteamAt(sp.which, s, sp.ang, sp.rad);
+      return {
+        x: o[0], y: o[1], z: o[2],
+        e: s < 0.22 ? 0.88 : 0.46,
+        th: -9, r: sp.r,
+        glow: s < 0.18 ? 0.4 : 0,
+        fe: clamp01(Math.min(s, 1 - s) / 0.12)
       };
     }
     if (sp.mv === 'blood') {
