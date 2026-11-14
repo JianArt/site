@@ -793,6 +793,13 @@ img {
   transform: scale(1.015);
 }
 
+/* An odd last image keeps its crop and sits in the middle of the row. */
+.gallery img:last-child:nth-child(odd):not(:only-child) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: calc((100% - 30px) / 2);
+}
+
 .notables-section {
   padding-top: 96px;
 }
@@ -832,6 +839,10 @@ img {
     gap: 20px;
   }
 
+  .gallery img:last-child:nth-child(odd):not(:only-child) {
+    width: calc((100% - 20px) / 2);
+  }
+
   .notables-grid {
     gap: 28px 20px;
   }
@@ -842,6 +853,12 @@ img {
   .gallery,
   .notables-grid {
     grid-template-columns: 1fr;
+  }
+
+  .gallery img:last-child:nth-child(odd):not(:only-child) {
+    grid-column: auto;
+    justify-self: stretch;
+    width: 100%;
   }
 
   .feature h2,
@@ -875,6 +892,8 @@ img {
   letter-spacing: -0.02em;
   color: var(--text);
   max-width: 900px;
+  /* Break after the dash clause, not after a comma. */
+  text-wrap: balance;
 }
 
 @media (max-width: 800px) {
@@ -1198,6 +1217,11 @@ img {
   font-size: 13px;
   letter-spacing: 0.02em;
   color: var(--muted);
+}
+
+/* Keep the legal close together so “Maps” cannot land on its own line. */
+.copyright-tail {
+  white-space: nowrap;
 }
 
 .copyright a {
