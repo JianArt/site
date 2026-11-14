@@ -302,6 +302,26 @@ img {
   color: var(--text);
 }
 
+/* Sister site: gold + arrow so it reads as a destination, not another page. */
+.nav-links a.nav-maps {
+  color: var(--gold);
+  gap: 6px;
+}
+.nav-links a.nav-maps::after {
+  content: "↗";
+  font-size: 0.85em;
+  line-height: 1;
+  opacity: 0.75;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.nav-links a.nav-maps:hover {
+  color: #e0cf9a;
+}
+.nav-links a.nav-maps:hover::after {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
 @media (max-width: 800px) {
   .nav {
     padding-top: 18px;
